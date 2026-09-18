@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  >
+
+  <title>Generatore template FIR</title>
+
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <style>
+    body {
+      max-width: 720px;
+      margin: 50px auto;
+      padding: 20px;
+      color: #14263a;
+      font-family: system-ui, sans-serif;
+      background: #f4f7fa;
+    }
+
+    main {
+      padding: 28px;
+      background: white;
+      border: 1px solid #d4e1ec;
+      border-radius: 14px;
+      box-shadow: 0 8px 25px #003b7a18;
+    }
+
+    h1 {
+      color: #003b7a;
+    }
+
+    button {
+      padding: 13px 20px;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      background: #0878be;
+      border: 0;
+      border-radius: 8px;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
+    #status {
+      min-height: 24px;
+      margin-top: 18px;
+      font-weight: 650;
+    }
+
+    code {
+      padding: 2px 5px;
+      background: #eaf4fb;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+<main>
+  <h1>Template compilabile FIR</h1>
+
+  <p>
+    Questo strumento converte <code>referto-base.pdf</code>
+    in <code>referto-compilabile.pdf</code>.
+  </p>
+
+  <button id="build" type="button">
+    Genera template compilabile
+  </button>
+
+  <p id="status"></p>
+</main>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = selector => document.querySelector(selector);
+
+  function download(bytes, fileName) {
+    const blob = new Blob([bytes], {
+      type: "application/pdf"
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = fileName;
+    link.style.display = "none";
+
+    document.body.appendChild(link);
+    link.click();
+
+    setTimeout(() => {
+      link.remove();
+      URL.revokeObjectURL(url);
+    }, 2000);
+  }
+
+  async function buildTemplate() {
+    const button = $("#build");
+    const status = $("#status");
+
+    button.disabled = true;
+    status.style.color = "#17633a";
+    status.textContent = "Creazione del template in corso…";
+
+    try {
+      if (!window.PDFLib) {
+        throw new Error("PDF-lib non è disponibile.");
+      }
+
+      const response = await fetch(
+        "referto-base.pdf?v=1",
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          "referto-base.pdf non è stato trovato nella root."
+        );
+      }
+
+      const sourceBytes = await response.arrayBuffer();
+
+      const {
+        PDFDocument,
+        StandardFonts,
+        rgb
+      } = window.PDFLib;
+
+      const pdf = await PDFDocument.load(sourceBytes);
+
+      if (pdf.getPageCount() !== 6) {
+        throw new Error(
+          `Il PDF deve contenere 6 pagine. ` +
+          `Pagine trovate: ${pdf.getPageCount()}.`
+        );
+      }
+
+      const form = pdf.getForm();
+
+      const font = await pdf.embedFont(
+        StandardFonts.Helvetica
+      );
+
+      const white = rgb(1, 1, 1);
+      const black = rgb(0, 0, 0);
+
+      const createdFields = [];
+
+      function pageAt(pageNumber) {
+        return pdf.getPage(pageNumber - 1);
+      }
+
+      function pdfY(page, top, height) {
+        return page.getHeight() - top - height;
+      }
+
+      function erase(page, x, top, width, height) {
+        page.drawRectangle({
+          x,
+          y: pdfY(page, top, height),
+          width,
+          height,
+          color: white
+        });
+      }
+
+      function addTextField(
+        pageNumber,
+        name,
+        x,
+        top,
+        width,
+        height,
+        options = {}
+      ) {
+        const page = pageAt(pageNumber);
+
+        erase(page, x, top, width, height);
+
+        const field = form.createTextField(name);
+
+        field.setFontSize(options.fontSize || 8);
+
+        if (options.multiline) {
+          field.enableMultiline();
+        }
+
+        field.addToPage(page, {
+          x,
+          y: pdfY(page, top, height),
+          width,
+          height,
+          borderWidth: 0,
+          backgroundColor: white,
+          textColor: black,
+          font
+        });
+
+        createdFields.push(name);
+      }
+
+      function addCheckbox(
+        pageNumber,
+        name,
+        x,
+        top,
+        size = 12
+      ) {
+        const page = pageAt(pageNumber);
+
+        const field = form.createCheckBox(name);
+
+        field.addToPage(page, {
+          x,
+          y: pdfY(page, top, size),
+          width: size,
+          height: size,
+          borderWidth: 0
+        });
+
+        createdFields.push(name);
+      }
+
+      /*
+       * PAGINA 1 — MAIL
+       */
+
+      addTextField(
+        1, "sender.fullName",
+        66, 83, 190, 13
+      );
+
+      addTextField(
+        1, "sender.email",
+        66, 98, 190, 13,
+        { fontSize: 7 }
+      );
+
+      addTextField(
+        1, "sender.phone",
+        66, 112, 190, 13
+      );
+
+      addTextField(
+        1, "sender.card",
+        66, 140, 190, 14
+      );
+
+      addTextField(
+        1, "committee.name",
+        300, 83, 205, 13,
+        { fontSize: 7 }
+      );
+
+      addTextField(
+        1, "committee.address",
+        300, 98, 205, 13,
+        { fontSize: 7 }
+      );
+
+      addTextField(
+        1, "committee.city",
+        300, 112, 205, 13
+      );
+
+      addTextField(
+        1, "committee.phone",
+        300, 127, 205, 13
+      );
+
+      addTextField(
+        1, "committee.email",
+        300, 140, 205, 14,
+        { fontSize: 7 }
+      );
+
+      addTextField(
+        1, "mail.pageCount",
+        354, 250, 25, 14
+      );
+
+      addTextField(
+        1, "mail.refereePhone",
+        136, 279, 90, 15
+      );
+
+      addTextField(
+        1, "match.date",
+        339, 279, 115, 15
+      );
+
+      addTextField(
+        1, "match.description",
+        112, 309, 391, 15
+      );
+
+      addCheckbox(
+        1,
+        "attachments.concussion",
+        52,
+        350
+      );
+
+      const attachmentNames = [
+        "A",
+        "B",
+        "C",
+        "C1",
+        "D",
+        "DAA",
+        "F",
+        "DAE",
+        "DOC"
+      ];
+
+      attachmentNames.forEach((name, index) => {
+        addTextField(
+          1,
+          `attachments.${name}`,
+          113 + index * 40.5,
+          424,
+          28,
+          17
+        );
+      });
+
+      addTextField(
+        1,
+        "mail.notes",
+        66,
+        600,
+        391,
+        100,
+        {
+          fontSize: 8,
+          multiline: true
+        }
+      );
+
+      /*
+       * PAGINA 2 — MOD. F
+       */
+
+      [
+        { half: 1, top: 60 },
+        { half: 2, top: 389 }
+      ].forEach(({ half, top }) => {
+        addTextField(
+          2,
+          `modF.${half}.home`,
+          317,
+          top,
+          68,
+          16,
+          { fontSize: 7 }
+        );
+
+        addTextField(
+          2,
+          `modF.${half}.away`,
+          452,
+          top,
+          68,
+          16,
+          { fontSize: 7 }
+        );
+
+        addTextField(
+          2,
+          `modF.${half}.category`,
+          188,
+          top + 21,
+          98,
+          17,
+          { fontSize: 7 }
+        );
+
+        addTextField(
+          2,
+          `modF.${half}.date`,
+          86,
+          top + 59,
+          86,
+          16
+        );
+
+        addTextField(
+          2,
+          `modF.${half}.start`,
+          94,
+          top + 88,
+          66,
+          16
+        );
+
+        addTextField(
+          2,
+          `modF.${half}.end`,
+          190,
+          top + 88,
+          66,
+          16
+        );
+
+        ["home", "away"].forEach(team => {
+          for (let row = 0; row < 5; row += 1) {
+            addTextField(
+              2,
+              `modF.${half}.temporary.${team}.${row}`,
+              team === "home" ? 244 : 378,
+              top + 40 + row * 14,
+              129,
+              13,
+              { fontSize: 6 }
+            );
+          }
+
+          for (let row = 0; row < 7; row += 1) {
+            addTextField(
+              2,
+              `modF.${half}.permanent.${team}.${row}`,
+              team === "home" ? 244 : 378,
+              top + 207 + row * 14,
+              129,
+              13,
+              { fontSize: 6 }
+            );
+          }
+        });
+      });
+
+      addTextField(
+        2,
+        "modF.referee",
+        147,
+        657,
+        156,
+        18
+      );
+
+      addTextField(
+        2,
+        "modF.card",
+        183,
+        686,
+        85,
+        16
+      );
+
+      addTextField(
+        2,
+        "modF.signature",
+        303,
+        758,
+        155,
+        18
+      );
+
+      /*
+       * PAGINA 3 — MOD. A
+       */
+
+      addTextField(
+        3,
+        "modA.date",
+        420, 59, 75, 17
+      );
+
+      addTextField(
+        3,
+        "modA.time",
+        438, 88, 60, 17
+      );
+
+      addTextField(
+        3,
+        "modA.category",
+        132, 117, 90, 18
+      );
+
+      addTextField(
+        3,
+        "modA.location",
+        286, 117, 110, 18
+      );
+
+      addTextField(
+        3,
+        "modA.field",
+        449, 117, 90, 18
+      );
+
+      addTextField(
+        3,
+        "official.referee.name",
+        104, 139, 290, 18
+      );
+
+      addTextField(
+        3,
+        "official.referee.card",
+        474, 139, 65, 18
+      );
+
+      addTextField(
+        3,
+        "official.assistant1.name",
+        104, 154, 290, 16
+      );
+
+      addTextField(
+        3,
+        "official.assistant1.card",
+        474, 154, 65, 16
+      );
+
+      addTextField(
+        3,
+        "official.assistant2.name",
+        104, 169, 290, 16
+      );
+
+      addTextField(
+        3,
+        "official.assistant2.card",
+        474, 169, 65, 16
+      );
+
+      addTextField(
+        3,
+        "time.first.start",
+        112, 198, 42, 16
+      );
+
+      addTextField(
+        3,
+        "time.first.end",
+        162, 198, 42, 16
+      );
+
+      addTextField(
+        3,
+        "time.second.start",
+        276, 198, 42, 16
+      );
+
+      addTextField(
+        3,
+        "time.second.end",
+        325, 198, 42, 16
+      );
+
+      addTextField(
+        3,
+        "time.leftField",
+        420, 198, 115, 16
+      );
+
+      addTextField(
+        3,
+        "team.home.name",
+        84, 219, 130, 20
+      );
+
+      addTextField(
+        3,
+        "team.away.name",
+        313, 219, 130, 20
+      );
+
+      addTextField(
+        3,
+        "team.home.score",
+        245, 219, 28, 20,
+        { fontSize: 11 }
+      );
+
+      addTextField(
+        3,
+        "team.away.score",
+        474, 219, 28, 20,
+        { fontSize: 11 }
+      );
+
+      const scoringTypes = [
+        "try",
+        "conversion",
+        "penalty",
+        "drop"
+      ];
+
+      const homeX = [
+        166,
+        200,
+        232,
+        262
+      ];
+
+      const awayX = [
+        395,
+        429,
+        461,
+        491
+      ];
+
+      scoringTypes.forEach((type, index) => {
+        [
+          ["1", 257],
+          ["2", 272],
+          ["total", 286],
+          ["points", 315]
+        ].forEach(([period, top]) => {
+          addTextField(
+            3,
+            `score.home.${period}.${type}`,
+            homeX[index],
+            top,
+            20,
+            14,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            3,
+            `score.away.${period}.${type}`,
+            awayX[index],
+            top,
+            20,
+            14,
+            { fontSize: 7 }
+          );
+        });
+      });
+
+      ["home", "away"].forEach(team => {
+        for (let row = 0; row < 8; row += 1) {
+          const x = team === "home"
+            ? 56
+            : 284;
+
+          const top = 384 + row * 14;
+
+          addTextField(
+            3,
+            `temporary.${team}.${row}.outNumber`,
+            x,
+            top,
+            20,
+            12,
+            { fontSize: 6 }
+          );
+
+          addTextField(
+            3,
+            `temporary.${team}.${row}.out`,
+            x + 22,
+            top,
+            75,
+            12,
+            { fontSize: 6 }
+          );
+
+          addTextField(
+            3,
+            `temporary.${team}.${row}.inNumber`,
+            x + 100,
+            top,
+            15,
+            12,
+            { fontSize: 6 }
+          );
+
+          addTextField(
+            3,
+            `temporary.${team}.${row}.in`,
+            x + 116,
+            top,
+            75,
+            12,
+            { fontSize: 6 }
+          );
+
+          addTextField(
+            3,
+            `temporary.${team}.${row}.time`,
+            x + 194,
+            top,
+            28,
+            12,
+            { fontSize: 6 }
+          );
+        }
+      });
+
+      [
+        ["yellow", 205, 567],
+        ["red", 365, 567],
+        ["absence", 205, 582],
+        ["abnormal", 365, 582],
+        ["injuries", 502, 582],
+        ["facilities", 205, 596],
+        ["incidents", 365, 596]
+      ].forEach(([name, x, top]) => {
+        addCheckbox(
+          3,
+          `flags.${name}`,
+          x,
+          top
+        );
+      });
+
+      addTextField(
+        3,
+        "modA.signature",
+        390, 689, 120, 18
+      );
+
+      /*
+       * PAGINA 4 — MOD. C
+       */
+
+      function addDisciplinaryRows(
+        prefix,
+        firstTop,
+        rows
+      ) {
+        for (let row = 0; row < rows; row += 1) {
+          const top = firstTop + row * 13;
+
+          addTextField(
+            4,
+            `${prefix}.${row}.team`,
+            56, top, 23, 12,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            4,
+            `${prefix}.${row}.person`,
+            88, top, 218, 12,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            4,
+            `${prefix}.${row}.number`,
+            318, top, 30, 12,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            4,
+            `${prefix}.${row}.card`,
+            359, top, 45, 12,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            4,
+            `${prefix}.${row}.half`,
+            411, top, 35, 12,
+            { fontSize: 7 }
+          );
+
+          addTextField(
+            4,
+            `${prefix}.${row}.minute`,
+            460, top, 35, 12,
+            { fontSize: 7 }
+          );
+        }
+      }
+
+      addDisciplinaryRows(
+        "discipline.yellow",
+        104,
+        8
+      );
+
+      addDisciplinaryRows(
+        "discipline.secondYellow",
+        244,
+        4
+      );
+
+      addDisciplinaryRows(
+        "discipline.red",
+        341,
+        4
+      );
+
+      for (let row = 0; row < 4; row += 1) {
+        addTextField(
+          4,
+          `discipline.red.${row}.reason`,
+          55,
+          425 + row * 76,
+          425,
+          55,
+          {
+            fontSize: 7,
+            multiline: true
+          }
+        );
+      }
+
+      addTextField(
+        4,
+        "modC.date",
+        201, 722, 125, 16
+      );
+
+      addTextField(
+        4,
+        "modC.home",
+        127, 759, 95, 17
+      );
+
+      addTextField(
+        4,
+        "modC.away",
+        226, 759, 95, 17
+      );
+
+      addTextField(
+        4,
+        "modC.signature",
+        378, 765, 105, 16
+      );
+
+      /*
+       * PAGINA 5 — MOD. C1
+       */
+
+      for (let row = 0; row < 8; row += 1) {
+        const top = 86 + row * 88;
+
+        addTextField(
+          5,
+          `members.${row}.team`,
+          53, top, 28, 18
+        );
+
+        addTextField(
+          5,
+          `members.${row}.person`,
+          84, top, 255, 18
+        );
+
+        addTextField(
+          5,
+          `members.${row}.card`,
+          342, top, 55, 18
+        );
+
+        addTextField(
+          5,
+          `members.${row}.half`,
+          400, top, 50, 18
+        );
+
+        addTextField(
+          5,
+          `members.${row}.minute`,
+          453, top, 50, 18
+        );
+
+        addTextField(
+          5,
+          `members.${row}.reason`,
+          53,
+          top + 22,
+          450,
+          55,
+          {
+            fontSize: 7,
+            multiline: true
+          }
+        );
+      }
+
+      addTextField(
+        5,
+        "modC1.date",
+        197, 723, 125, 16
+      );
+
+      addTextField(
+        5,
+        "modC1.home",
+        125, 760, 95, 17
+      );
+
+      addTextField(
+        5,
+        "modC1.away",
+        224, 760, 95, 17
+      );
+
+      addTextField(
+        5,
+        "modC1.signature",
+        378, 765, 105, 16
+      );
+
+      /*
+       * PAGINA 6 — MOD. D
+       */
+
+      addTextField(
+        6,
+        "modD.match",
+        122, 55, 300, 17
+      );
+
+      addTextField(
+        6,
+        "modD.date",
+        463, 55, 72, 17
+      );
+
+      [
+        ["doctorYes", 402, 89],
+        ["doctorNo", 485, 89],
+        ["escortsYes", 402, 106],
+        ["escortsNo", 485, 106],
+        ["managerNormal", 402, 123],
+        ["managerBad", 485, 123],
+        ["crowdGood", 402, 140],
+        ["crowdBad", 485, 140],
+        ["securityDone", 402, 158],
+        ["securityMissing", 402, 175],
+        ["securityNone", 402, 192],
+        ["facilitiesNo", 402, 209],
+        ["facilitiesYes", 485, 209],
+        ["injuriesNo", 402, 226],
+        ["injuriesYes", 485, 226],
+        ["incidentBefore", 228, 244],
+        ["incidentDuring", 359, 244],
+        ["incidentAfter", 452, 244]
+      ].forEach(([name, x, top]) => {
+        addCheckbox(
+          6,
+          `modD.${name}`,
+          x,
+          top
+        );
+      });
+
+      addTextField(
+        6,
+        "modD.details",
+        53,
+        275,
+        480,
+        400,
+        {
+          fontSize: 8,
+          multiline: true
+        }
+      );
+
+      addTextField(
+        6,
+        "modD.signature",
+        360, 723, 130, 18
+      );
+
+      form.updateFieldAppearances(font);
+
+      const output = await pdf.save();
+
+      download(
+        output,
+        "referto-compilabile.pdf"
+      );
+
+      status.textContent =
+        `Template creato con ${createdFields.length} campi. ` +
+        "Carica referto-compilabile.pdf nella root del repository.";
+
+      status.style.color = "#17633a";
+    } catch (error) {
+      console.error(error);
+
+      status.textContent =
+        `Errore: ${error.message}`;
+
+      status.style.color = "#b4232d";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  $("#build").addEventListener(
+    "click",
+    buildTemplate
+  );
+})();
+</script>
+</body>
+</html>
