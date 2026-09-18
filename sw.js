@@ -1,11 +1,11 @@
-const CACHE_NAME = "referto-fir-v8";
+const CACHE_NAME = "referto-fir-v10";
 
 const LOCAL_FILES = [
   "./",
   "./index.html",
   "./styles.css?v=8",
   "./app.js?v=8",
-  "./pdf-generator.js?v=8",
+  "./pdf-generator.js?v=10",
   "./manifest.webmanifest"
 ];
 
@@ -41,13 +41,15 @@ self.addEventListener("fetch", event => {
 
   const url = new URL(event.request.url);
 
-  // Le librerie Firebase e PDF-lib restano gestite dalla rete/CDN.
+  // Firebase e PDF-lib sono gestiti direttamente dai CDN.
   if (url.origin !== self.location.origin) {
     return;
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, {
+      cache: "no-store"
+    })
       .then(response => {
         if (!response || !response.ok) {
           return response;
