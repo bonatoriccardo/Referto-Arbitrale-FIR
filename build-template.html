@@ -2,9 +2,10 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
+
   <meta
     name="viewport"
-    content="width=device-width,initial-scale=1"
+    content="width=device-width, initial-scale=1"
   >
 
   <title>Generatore template FIR</title>
@@ -53,6 +54,7 @@
       min-height: 24px;
       margin-top: 18px;
       font-weight: 650;
+      white-space: pre-line;
     }
 
     code {
@@ -68,8 +70,8 @@
   <h1>Template compilabile FIR</h1>
 
   <p>
-    Questo strumento converte <code>referto-base.pdf</code>
-    in <code>referto-compilabile.pdf</code>.
+    Converte <code>referto-base.pdf</code> in
+    <code>referto-compilabile.pdf</code>.
   </p>
 
   <button id="build" type="button">
@@ -83,7 +85,8 @@
 (() => {
   "use strict";
 
-  const $ = selector => document.querySelector(selector);
+  const button = document.querySelector("#build");
+  const status = document.querySelector("#status");
 
   function download(bytes, fileName) {
     const blob = new Blob([bytes], {
@@ -107,9 +110,6 @@
   }
 
   async function buildTemplate() {
-    const button = $("#build");
-    const status = $("#status");
-
     button.disabled = true;
     status.style.color = "#17633a";
     status.textContent = "Creazione del template in corso…";
@@ -120,7 +120,7 @@
       }
 
       const response = await fetch(
-        "referto-base.pdf?v=1",
+        "referto-base.pdf?v=2",
         { cache: "no-store" }
       );
 
@@ -130,20 +130,18 @@
         );
       }
 
-      const sourceBytes = await response.arrayBuffer();
-
       const {
         PDFDocument,
         StandardFonts,
         rgb
       } = window.PDFLib;
 
+      const sourceBytes = await response.arrayBuffer();
       const pdf = await PDFDocument.load(sourceBytes);
 
       if (pdf.getPageCount() !== 6) {
         throw new Error(
-          `Il PDF deve contenere 6 pagine. ` +
-          `Pagine trovate: ${pdf.getPageCount()}.`
+          `Il PDF deve avere 6 pagine; trovate: ${pdf.getPageCount()}.`
         );
       }
 
@@ -158,18 +156,18 @@
 
       const createdFields = [];
 
-      function pageAt(pageNumber) {
+      function getPage(pageNumber) {
         return pdf.getPage(pageNumber - 1);
       }
 
-      function pdfY(page, top, height) {
+      function toPdfY(page, top, height) {
         return page.getHeight() - top - height;
       }
 
       function erase(page, x, top, width, height) {
         page.drawRectangle({
           x,
-          y: pdfY(page, top, height),
+          y: toPdfY(page, top, height),
           width,
           height,
           color: white
@@ -185,21 +183,23 @@
         height,
         options = {}
       ) {
-        const page = pageAt(pageNumber);
+        const page = getPage(pageNumber);
 
         erase(page, x, top, width, height);
 
         const field = form.createTextField(name);
 
-        field.setFontSize(options.fontSize || 8);
-
         if (options.multiline) {
           field.enableMultiline();
         }
 
+        /*
+         * Prima si aggiunge il campo alla pagina.
+         * Questo crea la default appearance /DA.
+         */
         field.addToPage(page, {
           x,
-          y: pdfY(page, top, height),
+          y: toPdfY(page, top, height),
           width,
           height,
           borderWidth: 0,
@@ -207,6 +207,12 @@
           textColor: black,
           font
         });
+
+        /*
+         * Solo dopo addToPage è sicuro impostare la dimensione.
+         */
+        field.setFontSize(options.fontSize || 8);
+        field.updateAppearances(font);
 
         createdFields.push(name);
       }
@@ -218,13 +224,12 @@
         top,
         size = 12
       ) {
-        const page = pageAt(pageNumber);
-
+        const page = getPage(pageNumber);
         const field = form.createCheckBox(name);
 
         field.addToPage(page, {
           x,
-          y: pdfY(page, top, size),
+          y: toPdfY(page, top, size),
           width: size,
           height: size,
           borderWidth: 0
@@ -237,74 +242,25 @@
        * PAGINA 1 — MAIL
        */
 
-      addTextField(
-        1, "sender.fullName",
-        66, 83, 190, 13
-      );
+      [
+        ["sender.fullName", 66, 83, 190, 13, 8],
+        ["sender.email", 66, 98, 190, 13, 7],
+        ["sender.phone", 66, 112, 190, 13, 8],
+        ["sender.card", 66, 140, 190, 14, 8],
 
-      addTextField(
-        1, "sender.email",
-        66, 98, 190, 13,
-        { fontSize: 7 }
-      );
+        ["committee.name", 300, 83, 205, 13, 7],
+        ["committee.address", 300, 98, 205, 13, 7],
+        ["committee.city", 300, 112, 205, 13, 8],
+        ["committee.phone", 300, 127, 205, 13, 8],
+        ["committee.email", 300, 140, 205, 14, 7],
 
-      addTextField(
-        1, "sender.phone",
-        66, 112, 190, 13
-      );
-
-      addTextField(
-        1, "sender.card",
-        66, 140, 190, 14
-      );
-
-      addTextField(
-        1, "committee.name",
-        300, 83, 205, 13,
-        { fontSize: 7 }
-      );
-
-      addTextField(
-        1, "committee.address",
-        300, 98, 205, 13,
-        { fontSize: 7 }
-      );
-
-      addTextField(
-        1, "committee.city",
-        300, 112, 205, 13
-      );
-
-      addTextField(
-        1, "committee.phone",
-        300, 127, 205, 13
-      );
-
-      addTextField(
-        1, "committee.email",
-        300, 140, 205, 14,
-        { fontSize: 7 }
-      );
-
-      addTextField(
-        1, "mail.pageCount",
-        354, 250, 25, 14
-      );
-
-      addTextField(
-        1, "mail.refereePhone",
-        136, 279, 90, 15
-      );
-
-      addTextField(
-        1, "match.date",
-        339, 279, 115, 15
-      );
-
-      addTextField(
-        1, "match.description",
-        112, 309, 391, 15
-      );
+        ["mail.pageCount", 354, 250, 25, 14, 9],
+        ["mail.refereePhone", 136, 279, 90, 15, 9],
+        ["match.date", 339, 279, 115, 15, 9],
+        ["match.description", 112, 309, 391, 15, 8]
+      ].forEach(field => {
+        addTextField(1, ...field);
+      });
 
       addCheckbox(
         1,
@@ -332,7 +288,8 @@
           113 + index * 40.5,
           424,
           28,
-          17
+          17,
+          { fontSize: 9 }
         );
       });
 
@@ -350,76 +307,50 @@
       );
 
       /*
-       * PAGINA 2 — MOD. F
+       * PAGINA 2 — CARTELLINO / MOD. F
        */
 
       [
         { half: 1, top: 60 },
         { half: 2, top: 389 }
       ].forEach(({ half, top }) => {
-        addTextField(
-          2,
-          `modF.${half}.home`,
-          317,
-          top,
-          68,
-          16,
-          { fontSize: 7 }
-        );
-
-        addTextField(
-          2,
-          `modF.${half}.away`,
-          452,
-          top,
-          68,
-          16,
-          { fontSize: 7 }
-        );
-
-        addTextField(
-          2,
-          `modF.${half}.category`,
-          188,
-          top + 21,
-          98,
-          17,
-          { fontSize: 7 }
-        );
-
-        addTextField(
-          2,
-          `modF.${half}.date`,
-          86,
-          top + 59,
-          86,
-          16
-        );
-
-        addTextField(
-          2,
-          `modF.${half}.start`,
-          94,
-          top + 88,
-          66,
-          16
-        );
-
-        addTextField(
-          2,
-          `modF.${half}.end`,
-          190,
-          top + 88,
-          66,
-          16
-        );
+        [
+          [
+            `modF.${half}.home`,
+            317, top, 68, 16, 7
+          ],
+          [
+            `modF.${half}.away`,
+            452, top, 68, 16, 7
+          ],
+          [
+            `modF.${half}.category`,
+            188, top + 21, 98, 17, 7
+          ],
+          [
+            `modF.${half}.date`,
+            86, top + 59, 86, 16, 8
+          ],
+          [
+            `modF.${half}.start`,
+            94, top + 88, 66, 16, 8
+          ],
+          [
+            `modF.${half}.end`,
+            190, top + 88, 66, 16, 8
+          ]
+        ].forEach(field => {
+          addTextField(2, ...field);
+        });
 
         ["home", "away"].forEach(team => {
+          const x = team === "home" ? 244 : 378;
+
           for (let row = 0; row < 5; row += 1) {
             addTextField(
               2,
               `modF.${half}.temporary.${team}.${row}`,
-              team === "home" ? 244 : 378,
+              x,
               top + 40 + row * 14,
               129,
               13,
@@ -431,7 +362,7 @@
             addTextField(
               2,
               `modF.${half}.permanent.${team}.${row}`,
-              team === "home" ? 244 : 378,
+              x,
               top + 207 + row * 14,
               129,
               13,
@@ -441,158 +372,48 @@
         });
       });
 
-      addTextField(
-        2,
-        "modF.referee",
-        147,
-        657,
-        156,
-        18
-      );
-
-      addTextField(
-        2,
-        "modF.card",
-        183,
-        686,
-        85,
-        16
-      );
-
-      addTextField(
-        2,
-        "modF.signature",
-        303,
-        758,
-        155,
-        18
-      );
+      [
+        ["modF.referee", 147, 657, 156, 18, 8],
+        ["modF.card", 183, 686, 85, 16, 8],
+        ["modF.signature", 303, 758, 155, 18, 8]
+      ].forEach(field => {
+        addTextField(2, ...field);
+      });
 
       /*
        * PAGINA 3 — MOD. A
        */
 
-      addTextField(
-        3,
-        "modA.date",
-        420, 59, 75, 17
-      );
+      [
+        ["modA.date", 420, 59, 75, 17, 9],
+        ["modA.time", 438, 88, 60, 17, 9],
+        ["modA.category", 132, 117, 90, 18, 8],
+        ["modA.location", 286, 117, 110, 18, 8],
+        ["modA.field", 449, 117, 90, 18, 8],
 
-      addTextField(
-        3,
-        "modA.time",
-        438, 88, 60, 17
-      );
+        ["official.referee.name", 104, 139, 290, 18, 9],
+        ["official.referee.card", 474, 139, 65, 18, 9],
 
-      addTextField(
-        3,
-        "modA.category",
-        132, 117, 90, 18
-      );
+        ["official.assistant1.name", 104, 154, 290, 16, 8],
+        ["official.assistant1.card", 474, 154, 65, 16, 8],
 
-      addTextField(
-        3,
-        "modA.location",
-        286, 117, 110, 18
-      );
+        ["official.assistant2.name", 104, 169, 290, 16, 8],
+        ["official.assistant2.card", 474, 169, 65, 16, 8],
 
-      addTextField(
-        3,
-        "modA.field",
-        449, 117, 90, 18
-      );
+        ["time.first.start", 112, 198, 42, 16, 8],
+        ["time.first.end", 162, 198, 42, 16, 8],
+        ["time.second.start", 276, 198, 42, 16, 8],
+        ["time.second.end", 325, 198, 42, 16, 8],
+        ["time.leftField", 420, 198, 115, 16, 8],
 
-      addTextField(
-        3,
-        "official.referee.name",
-        104, 139, 290, 18
-      );
+        ["team.home.name", 84, 219, 130, 20, 8],
+        ["team.away.name", 313, 219, 130, 20, 8],
 
-      addTextField(
-        3,
-        "official.referee.card",
-        474, 139, 65, 18
-      );
-
-      addTextField(
-        3,
-        "official.assistant1.name",
-        104, 154, 290, 16
-      );
-
-      addTextField(
-        3,
-        "official.assistant1.card",
-        474, 154, 65, 16
-      );
-
-      addTextField(
-        3,
-        "official.assistant2.name",
-        104, 169, 290, 16
-      );
-
-      addTextField(
-        3,
-        "official.assistant2.card",
-        474, 169, 65, 16
-      );
-
-      addTextField(
-        3,
-        "time.first.start",
-        112, 198, 42, 16
-      );
-
-      addTextField(
-        3,
-        "time.first.end",
-        162, 198, 42, 16
-      );
-
-      addTextField(
-        3,
-        "time.second.start",
-        276, 198, 42, 16
-      );
-
-      addTextField(
-        3,
-        "time.second.end",
-        325, 198, 42, 16
-      );
-
-      addTextField(
-        3,
-        "time.leftField",
-        420, 198, 115, 16
-      );
-
-      addTextField(
-        3,
-        "team.home.name",
-        84, 219, 130, 20
-      );
-
-      addTextField(
-        3,
-        "team.away.name",
-        313, 219, 130, 20
-      );
-
-      addTextField(
-        3,
-        "team.home.score",
-        245, 219, 28, 20,
-        { fontSize: 11 }
-      );
-
-      addTextField(
-        3,
-        "team.away.score",
-        474, 219, 28, 20,
-        { fontSize: 11 }
-      );
+        ["team.home.score", 245, 219, 28, 20, 11],
+        ["team.away.score", 474, 219, 28, 20, 11]
+      ].forEach(field => {
+        addTextField(3, ...field);
+      });
 
       const scoringTypes = [
         "try",
@@ -601,19 +422,8 @@
         "drop"
       ];
 
-      const homeX = [
-        166,
-        200,
-        232,
-        262
-      ];
-
-      const awayX = [
-        395,
-        429,
-        461,
-        491
-      ];
+      const homeColumns = [166, 200, 232, 262];
+      const awayColumns = [395, 429, 461, 491];
 
       scoringTypes.forEach((type, index) => {
         [
@@ -625,7 +435,7 @@
           addTextField(
             3,
             `score.home.${period}.${type}`,
-            homeX[index],
+            homeColumns[index],
             top,
             20,
             14,
@@ -635,7 +445,7 @@
           addTextField(
             3,
             `score.away.${period}.${type}`,
-            awayX[index],
+            awayColumns[index],
             top,
             20,
             14,
@@ -645,62 +455,28 @@
       });
 
       ["home", "away"].forEach(team => {
-        for (let row = 0; row < 8; row += 1) {
-          const x = team === "home"
-            ? 56
-            : 284;
+        const x = team === "home" ? 56 : 284;
 
+        for (let row = 0; row < 8; row += 1) {
           const top = 384 + row * 14;
 
-          addTextField(
-            3,
-            `temporary.${team}.${row}.outNumber`,
-            x,
-            top,
-            20,
-            12,
-            { fontSize: 6 }
-          );
-
-          addTextField(
-            3,
-            `temporary.${team}.${row}.out`,
-            x + 22,
-            top,
-            75,
-            12,
-            { fontSize: 6 }
-          );
-
-          addTextField(
-            3,
-            `temporary.${team}.${row}.inNumber`,
-            x + 100,
-            top,
-            15,
-            12,
-            { fontSize: 6 }
-          );
-
-          addTextField(
-            3,
-            `temporary.${team}.${row}.in`,
-            x + 116,
-            top,
-            75,
-            12,
-            { fontSize: 6 }
-          );
-
-          addTextField(
-            3,
-            `temporary.${team}.${row}.time`,
-            x + 194,
-            top,
-            28,
-            12,
-            { fontSize: 6 }
-          );
+          [
+            ["outNumber", x, 20],
+            ["out", x + 22, 75],
+            ["inNumber", x + 100, 15],
+            ["in", x + 116, 75],
+            ["time", x + 194, 28]
+          ].forEach(([property, fieldX, width]) => {
+            addTextField(
+              3,
+              `temporary.${team}.${row}.${property}`,
+              fieldX,
+              top,
+              width,
+              12,
+              { fontSize: 6 }
+            );
+          });
         }
       });
 
@@ -724,7 +500,11 @@
       addTextField(
         3,
         "modA.signature",
-        390, 689, 120, 18
+        390,
+        689,
+        120,
+        18,
+        { fontSize: 8 }
       );
 
       /*
@@ -734,52 +514,29 @@
       function addDisciplinaryRows(
         prefix,
         firstTop,
-        rows
+        rowCount
       ) {
-        for (let row = 0; row < rows; row += 1) {
+        for (let row = 0; row < rowCount; row += 1) {
           const top = firstTop + row * 13;
 
-          addTextField(
-            4,
-            `${prefix}.${row}.team`,
-            56, top, 23, 12,
-            { fontSize: 7 }
-          );
-
-          addTextField(
-            4,
-            `${prefix}.${row}.person`,
-            88, top, 218, 12,
-            { fontSize: 7 }
-          );
-
-          addTextField(
-            4,
-            `${prefix}.${row}.number`,
-            318, top, 30, 12,
-            { fontSize: 7 }
-          );
-
-          addTextField(
-            4,
-            `${prefix}.${row}.card`,
-            359, top, 45, 12,
-            { fontSize: 7 }
-          );
-
-          addTextField(
-            4,
-            `${prefix}.${row}.half`,
-            411, top, 35, 12,
-            { fontSize: 7 }
-          );
-
-          addTextField(
-            4,
-            `${prefix}.${row}.minute`,
-            460, top, 35, 12,
-            { fontSize: 7 }
-          );
+          [
+            ["team", 56, 23],
+            ["person", 88, 218],
+            ["number", 318, 30],
+            ["card", 359, 45],
+            ["half", 411, 35],
+            ["minute", 460, 35]
+          ].forEach(([property, x, width]) => {
+            addTextField(
+              4,
+              `${prefix}.${row}.${property}`,
+              x,
+              top,
+              width,
+              12,
+              { fontSize: 7 }
+            );
+          });
         }
       }
 
@@ -816,66 +573,56 @@
         );
       }
 
-      addTextField(
-        4,
-        "modC.date",
-        201, 722, 125, 16
-      );
-
-      addTextField(
-        4,
-        "modC.home",
-        127, 759, 95, 17
-      );
-
-      addTextField(
-        4,
-        "modC.away",
-        226, 759, 95, 17
-      );
-
-      addTextField(
-        4,
-        "modC.signature",
-        378, 765, 105, 16
-      );
+      [
+        ["modC.date", 201, 722, 125, 16, 8],
+        ["modC.home", 127, 759, 95, 17, 7],
+        ["modC.away", 226, 759, 95, 17, 7],
+        ["modC.signature", 378, 765, 105, 16, 7]
+      ].forEach(field => {
+        addTextField(4, ...field);
+      });
 
       /*
        * PAGINA 5 — MOD. C1
        */
 
-      for (let row = 0; row < 8; row += 1) {
-        const top = 86 + row * 88;
+      const memberTops = [
+        86,
+        174,
+        262,
+        350,
+        438,
+        526,
+        614,
+        702
+      ];
 
-        addTextField(
-          5,
-          `members.${row}.team`,
-          53, top, 28, 18
-        );
+      memberTops.forEach((top, row) => {
+        [
+          ["team", 53, 28],
+          ["person", 84, 255],
+          ["card", 342, 55],
+          ["half", 400, 50],
+          ["minute", 453, 50]
+        ].forEach(([property, x, width]) => {
+          addTextField(
+            5,
+            `members.${row}.${property}`,
+            x,
+            top,
+            width,
+            18,
+            { fontSize: 7 }
+          );
+        });
 
-        addTextField(
-          5,
-          `members.${row}.person`,
-          84, top, 255, 18
-        );
-
-        addTextField(
-          5,
-          `members.${row}.card`,
-          342, top, 55, 18
-        );
-
-        addTextField(
-          5,
-          `members.${row}.half`,
-          400, top, 50, 18
-        );
-
-        addTextField(
-          5,
-          `members.${row}.minute`,
-          453, top, 50, 18
-        );
+        /*
+         * L’ultimo blocco del modello termina prima del piè di pagina.
+         */
+        const reasonHeight =
+          row === memberTops.length - 1
+            ? 16
+            : 55;
 
         addTextField(
           5,
@@ -883,37 +630,22 @@
           53,
           top + 22,
           450,
-          55,
+          reasonHeight,
           {
             fontSize: 7,
             multiline: true
           }
         );
-      }
+      });
 
-      addTextField(
-        5,
-        "modC1.date",
-        197, 723, 125, 16
-      );
-
-      addTextField(
-        5,
-        "modC1.home",
-        125, 760, 95, 17
-      );
-
-      addTextField(
-        5,
-        "modC1.away",
-        224, 760, 95, 17
-      );
-
-      addTextField(
-        5,
-        "modC1.signature",
-        378, 765, 105, 16
-      );
+      [
+        ["modC1.date", 197, 723, 125, 16, 8],
+        ["modC1.home", 125, 760, 95, 17, 7],
+        ["modC1.away", 224, 760, 95, 17, 7],
+        ["modC1.signature", 378, 765, 105, 16, 7]
+      ].forEach(field => {
+        addTextField(5, ...field);
+      });
 
       /*
        * PAGINA 6 — MOD. D
@@ -922,13 +654,21 @@
       addTextField(
         6,
         "modD.match",
-        122, 55, 300, 17
+        122,
+        55,
+        300,
+        17,
+        { fontSize: 8 }
       );
 
       addTextField(
         6,
         "modD.date",
-        463, 55, 72, 17
+        463,
+        55,
+        72,
+        17,
+        { fontSize: 8 }
       );
 
       [
@@ -975,9 +715,16 @@
       addTextField(
         6,
         "modD.signature",
-        360, 723, 130, 18
+        360,
+        723,
+        130,
+        18,
+        { fontSize: 8 }
       );
 
+      /*
+       * Aggiornamento finale di tutte le apparenze.
+       */
       form.updateFieldAppearances(font);
 
       const output = await pdf.save();
@@ -988,12 +735,16 @@
       );
 
       status.textContent =
-        `Template creato con ${createdFields.length} campi. ` +
-        "Carica referto-compilabile.pdf nella root del repository.";
+        `Template creato correttamente con ` +
+        `${createdFields.length} campi.\n` +
+        `Carica referto-compilabile.pdf nella root del repository.`;
 
       status.style.color = "#17633a";
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Errore generazione AcroForm:",
+        error
+      );
 
       status.textContent =
         `Errore: ${error.message}`;
@@ -1004,7 +755,7 @@
     }
   }
 
-  $("#build").addEventListener(
+  button.addEventListener(
     "click",
     buildTemplate
   );
