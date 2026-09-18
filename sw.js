@@ -1,4 +1,4 @@
-const CACHE_NAME = "referto-fir-v10";
+const CACHE_NAME = "referto-fir-v11";
 
 const LOCAL_FILES = [
   "./",
