@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function verifiedUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true;
+    }
+
+    match /profiles/{userId} {
+      allow read, create, update:
+        if verifiedUser()
+        && request.auth.uid == userId;
+
+      allow delete: if false;
+    }
+
+    match /reports/{reportId} {
+      allow create:
+        if verifiedUser()
+        && request.resource.data.owner == request.auth.uid;
+
+      allow read, delete:
+        if verifiedUser()
+        && resource.data.owner == request.auth.uid;
+
+      allow update:
+        if verifiedUser()
+        && resource.data.owner == request.auth.uid
+        && request.resource.data.owner == request.auth.uid;
+    }
+  }
+}
