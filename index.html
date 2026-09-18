@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport"
+        content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#123b2a">
+
+  <title>Referto Arbitrale FIR — Beta</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+<header>
+  <div>
+    <b>FIR</b>
+    <span>Referto Arbitrale</span>
+  </div>
+
+  <button id="logout" class="ghost hidden">Esci</button>
+</header>
+
+<main>
+  <section id="auth" class="card narrow">
+    <h1>Accedi alla beta</h1>
+    <p>Compila e conserva i referti arbitrali in modo guidato.</p>
+
+    <form id="authForm">
+      <label>
+        E-mail
+        <input id="email" type="email" required autocomplete="email">
+      </label>
+
+      <label>
+        Password
+        <input id="password"
+               type="password"
+               minlength="6"
+               required
+               autocomplete="current-password">
+      </label>
+
+      <div class="row">
+        <button type="submit">Accedi</button>
+        <button id="register" type="button" class="secondary">
+          Registrati
+        </button>
+      </div>
+
+      <button id="reset" type="button" class="link">
+        Password dimenticata?
+      </button>
+
+      <p id="authMsg" class="msg"></p>
+    </form>
+  </section>
+
+  <section id="verify" class="card narrow hidden">
+    <h1>Verifica l’e-mail</h1>
+
+    <p>
+      Apri il messaggio ricevuto, verifica l’indirizzo e poi torna qui.
+    </p>
+
+    <div class="row">
+      <button id="resend">Reinvia</button>
+      <button id="reload" class="secondary">Ho verificato</button>
+    </div>
+  </section>
+
+  <section id="app" class="hidden">
+    <nav class="steps" id="steps"></nav>
+
+    <form id="reportForm">
+      <div class="panel" data-step="0">
+        <h2>1. Profilo arbitro</h2>
+
+        <div class="grid">
+          <label>
+            Nome
+            <input name="referee.firstName" required>
+          </label>
+
+          <label>
+            Cognome
+            <input name="referee.lastName" required>
+          </label>
+
+          <label>
+            Telefono
+            <input name="referee.phone" type="tel" required>
+          </label>
+
+          <label>
+            E-mail
+            <input name="referee.email" type="email" required>
+          </label>
+
+          <label>
+            Numero tessera
+            <input name="referee.card" required inputmode="numeric">
+          </label>
+
+          <label>
+            Ruolo nella gara
+            <select name="referee.role" required>
+              <option value="">Seleziona</option>
+              <option>Arbitro</option>
+              <option>1° Assistente</option>
+              <option>2° Assistente</option>
+              <option>4° Uomo</option>
+              <option>5° Uomo</option>
+              <option>TMO</option>
+              <option>Tutor</option>
+              <option>Dir. Concentr.</option>
+            </select>
+          </label>
+
+          <label class="wide">
+            Comitato
+            <select name="referee.committee"
+                    id="committee"
+                    required></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="panel hidden" data-step="1">
+        <h2>2. Gara</h2>
+
+        <div class="grid">
+          <label>
+            Data
+            <input name="match.date" type="date" required>
+          </label>
+
+          <label>
+            Ora
+            <input name="match.time" type="time" required>
+          </label>
+
+          <label>
+            Categoria
+            <select name="match.category"
+                    id="category"
+                    required></select>
+          </label>
+
+          <label>
+            Campo
+            <input name="match.field" required>
+          </label>
+
+          <label>
+            Località
+            <input name="match.location" required>
+          </label>
+
+          <label>
+            Società 1
+            <input name="match.home" required>
+          </label>
+
+          <label>
+            Società 2
+            <input name="match.away" required>
+          </label>
+
+          <label>
+            Inizio 1° tempo
+            <input name="match.firstStart" type="time">
+          </label>
+
+          <label>
+            Fine 1° tempo
+            <input name="match.firstEnd" type="time">
+          </label>
+
+          <label>
+            Inizio 2° tempo
+            <input name="match.secondStart" type="time">
+          </label>
+
+          <label>
+            Fine 2° tempo
+            <input name="match.secondEnd" type="time">
+          </label>
+        </div>
+
+        <h3>Team arbitrale</h3>
+        <div id="teamRows"></div>
+      </div>
+
+      <div class="panel hidden" data-step="2">
+        <h2>3. Cartellino eventi</h2>
+
+        <p class="hint">
+          Registra ogni evento: il punteggio viene calcolato automaticamente.
+        </p>
+
+        <div class="grid event-form">
+          <label>
+            Squadra
+            <select id="evTeam">
+              <option value="home">Società 1</option>
+              <option value="away">Società 2</option>
+            </select>
+          </label>
+
+          <label>
+            Tempo
+            <select id="evHalf">
+              <option>1</option>
+              <option>2</option>
+            </select>
+          </label>
+
+          <label>
+            Minuto
+            <input id="evMinute" type="number" min="0" max="120">
+          </label>
+
+          <label>
+            Evento
+            <select id="evType">
+              <option value="try">Meta</option>
+              <option value="conversion">Trasformazione</option>
+              <option value="penalty">Punizione</option>
+              <option value="drop">Drop</option>
+              <option value="yellow">Cartellino giallo</option>
+              <option value="secondYellow">Secondo giallo</option>
+              <option value="red">Cartellino rosso</option>
+              <option value="temporary">Sostituzione temporanea</option>
+              <option value="permanent">Sostituzione definitiva</option>
+            </select>
+          </label>
+
+          <label>
+            Giocatore / tesserato
+            <input id="evPerson">
+          </label>
+
+          <label>
+            N. maglia
+            <input id="evNumber" inputmode="numeric">
+          </label>
+
+          <label>
+            N. tessera
+            <input id="evCard">
+          </label>
+
+          <label class="wide">
+            Note / motivo
+            <input id="evNotes">
+          </label>
+        </div>
+
+        <button id="addEvent" type="button">Aggiungi evento</button>
+
+        <div class="score">
+          <div>
+            <span id="homeName">Società 1</span>
+            <b id="homeScore">0</b>
+          </div>
+
+          <div>
+            <span id="awayName">Società 2</span>
+            <b id="awayScore">0</b>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+            <tr>
+              <th>Sq.</th>
+              <th>T</th>
+              <th>Min</th>
+              <th>Evento</th>
+              <th>Nominativo</th>
+              <th></th>
+            </tr>
+            </thead>
+
+            <tbody id="eventsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel hidden" data-step="3">
+        <h2>4. Riferimenti e incidenti</h2>
+
+        <div class="questions">
+          <fieldset>
+            <legend>Medico presente?</legend>
+            <label>
+              <input type="radio"
+                     name="checks.doctor"
+                     value="Si"
+                     required>
+              Sì
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.doctor"
+                     value="No">
+              No
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Entrambi gli accompagnatori presenti?</legend>
+            <label>
+              <input type="radio"
+                     name="checks.escorts"
+                     value="Si"
+                     required>
+              Sì
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.escorts"
+                     value="No">
+              No
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Dirigente addetto all’arbitro</legend>
+            <label>
+              <input type="radio"
+                     name="checks.manager"
+                     value="Normale"
+                     required>
+              Normale
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.manager"
+                     value="Censurabile">
+              Censurabile
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Comportamento del pubblico</legend>
+            <label>
+              <input type="radio"
+                     name="checks.crowd"
+                     value="Corretto"
+                     required>
+              Corretto
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.crowd"
+                     value="Scorretto">
+              Scorretto
+            </label>
+          </fieldset>
+
+          <label>
+            Misure d’ordine
+            <select name="checks.security" required>
+              <option value="">Seleziona</option>
+              <option>Svolte da forze dell'ordine</option>
+              <option>Richieste ma assenti</option>
+              <option>Non richieste ed assenti</option>
+            </select>
+          </label>
+
+          <fieldset>
+            <legend>Rilievi su terreno/spogliatoi?</legend>
+            <label>
+              <input type="radio"
+                     name="checks.facilities"
+                     value="No"
+                     required>
+              No
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.facilities"
+                     value="Si">
+              Sì
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Infortuni?</legend>
+            <label>
+              <input type="radio"
+                     name="checks.injuries"
+                     value="No"
+                     required>
+              No
+            </label>
+            <label>
+              <input type="radio"
+                     name="checks.injuries"
+                     value="Si">
+              Sì
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Incidenti</legend>
+            <label>
+              <input type="checkbox" name="checks.before">
+              Prima
+            </label>
+            <label>
+              <input type="checkbox" name="checks.during">
+              Durante
+            </label>
+            <label>
+              <input type="checkbox" name="checks.after">
+              Dopo
+            </label>
+          </fieldset>
+
+          <label class="wide">
+            Descrizione dettagliata
+            <textarea name="checks.details" rows="8"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="panel hidden" data-step="4">
+        <h2>5. Riepilogo e invio</h2>
+
+        <div id="summary"></div>
+
+        <label>
+          Note finali
+          <textarea name="notes" rows="5"></textarea>
+        </label>
+
+        <label class="consent">
+          <input type="checkbox" name="declaration" required>
+          Confermo che i dati inseriti sono completi e corretti.
+        </label>
+
+        <div class="row wrap">
+          <button id="save" type="button">Salva bozza</button>
+          <button id="pdf" type="button" class="secondary">
+            Scarica PDF
+          </button>
+          <button id="complete" type="button" class="danger">
+            Conferma referto
+          </button>
+        </div>
+
+        <p id="saveMsg" class="msg"></p>
+      </div>
+
+      <div class="wizard">
+        <button id="prev" type="button" class="secondary">Indietro</button>
+        <span id="progress"></span>
+        <button id="next" type="button">Avanti</button>
+      </div>
+    </form>
+
+    <section class="card">
+      <div class="row between">
+        <h2>Le mie bozze</h2>
+        <button id="newReport" type="button" class="secondary">
+          Nuovo referto
+        </button>
+      </div>
+
+      <div id="reports"></div>
+    </section>
+  </section>
+</main>
+
+<footer>
+  Beta sperimentale — verificare il PDF prima dell’invio ufficiale.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
