@@ -1,19 +1,86 @@
-const CACHE = "referto-fir-disabled-v5";
+const CACHE_NAME = "referto-fir-v8";
 
-self.addEventListener("install", () => {
+const LOCAL_FILES = [
+  "./",
+  "./index.html",
+  "./styles.css?v=8",
+  "./app.js?v=8",
+  "./pdf-generator.js?v=8",
+  "./manifest.webmanifest"
+];
+
+self.addEventListener("install", event => {
+  event.waitUntil(
+    caches
+      .open(CACHE_NAME)
+      .then(cache => cache.addAll(LOCAL_FILES))
+  );
+
   self.skipWaiting();
 });
 
 self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys()
+    caches
+      .keys()
       .then(keys =>
-        Promise.all(keys.map(key => caches.delete(key)))
+        Promise.all(
+          keys
+            .filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+        )
       )
       .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener("fetch", () => {
-  // Cache disattivata durante la beta.
+self.addEventListener("fetch", event => {
+  if (event.request.method !== "GET") {
+    return;
+  }
+
+  const url = new URL(event.request.url);
+
+  // Le librerie Firebase e PDF-lib restano gestite dalla rete/CDN.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        if (!response || !response.ok) {
+          return response;
+        }
+
+        const copy = response.clone();
+
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, copy);
+        });
+
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+
+        if (cached) {
+          return cached;
+        }
+
+        if (event.request.mode === "navigate") {
+          return caches.match("./index.html");
+        }
+
+        return new Response(
+          "Risorsa non disponibile offline.",
+          {
+            status: 503,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8"
+            }
+          }
+        );
+      })
+  );
 });
