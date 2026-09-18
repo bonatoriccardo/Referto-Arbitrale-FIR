@@ -1,0 +1,13 @@
+{
+  "name": "Referto Arbitrale FIR",
+  "short_name": "Referto FIR",
+  "description": "Compilazione guidata del referto arbitrale FIR",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f6f4",
+  "theme_color": "#123b2a",
+  "icons": []
+}
