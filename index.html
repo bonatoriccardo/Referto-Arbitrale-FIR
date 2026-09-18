@@ -13,13 +13,13 @@
   <title>Referto Arbitrale FIR — Beta</title>
 
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=8">
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 
-  <!-- Compilazione del PDF ufficiale -->
+  <!-- Generazione vettoriale PDF -->
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 </head>
 
@@ -30,7 +30,7 @@
 
     <span>
       <b>Federazione Italiana Rugby</b>
-      <small>Referto arbitrale · Beta v7</small>
+      <small>Referto arbitrale · Beta v8</small>
     </span>
   </div>
 
@@ -40,13 +40,14 @@
 </header>
 
 <main>
+  <!-- AUTENTICAZIONE -->
   <section id="auth" class="card auth-card">
     <p class="eyebrow">AREA ARBITRI</p>
 
     <h1>Accedi al referto digitale</h1>
 
     <p class="muted">
-      Compila, salva e genera il referto ufficiale della gara.
+      Compila, salva e genera il referto federale della gara.
     </p>
 
     <form id="authForm">
@@ -99,6 +100,7 @@
     </form>
   </section>
 
+  <!-- VERIFICA E-MAIL -->
   <section id="verify" class="card auth-card hidden">
     <p class="eyebrow">ULTIMO PASSAGGIO</p>
 
@@ -125,6 +127,7 @@
     <p id="verifyMsg" class="message"></p>
   </section>
 
+  <!-- APPLICAZIONE -->
   <section id="app" class="hidden">
     <div class="app-head">
       <div>
@@ -144,36 +147,49 @@
     <nav id="steps" class="steps"></nav>
 
     <form id="reportForm">
-      <!-- PASSAGGIO 1 -->
+      <!-- 1. PROFILO -->
       <section class="panel" data-step="0">
         <h2>Profilo arbitro</h2>
 
         <p class="section-help">
-          I dati saranno ricordati per i referti successivi.
+          Questi dati saranno ricordati per i referti successivi.
         </p>
 
         <div class="grid">
           <label>
             Nome
-            <input name="referee.firstName" required>
+
+            <input
+              name="referee.firstName"
+              required
+              autocomplete="given-name"
+            >
           </label>
 
           <label>
             Cognome
-            <input name="referee.lastName" required>
+
+            <input
+              name="referee.lastName"
+              required
+              autocomplete="family-name"
+            >
           </label>
 
           <label>
             Telefono
+
             <input
               name="referee.phone"
               type="tel"
               required
+              autocomplete="tel"
             >
           </label>
 
           <label>
             E-mail
+
             <input
               name="referee.email"
               type="email"
@@ -183,7 +199,8 @@
           </label>
 
           <label>
-            Numero tessera
+            Numero tessera FIR
+
             <input
               name="referee.card"
               required
@@ -219,13 +236,14 @@
         </div>
       </section>
 
-      <!-- PASSAGGIO 2 -->
+      <!-- 2. GARA -->
       <section class="panel hidden" data-step="1">
         <h2>Dati della gara</h2>
 
         <div class="grid">
           <label>
             Data
+
             <input
               name="match.date"
               type="date"
@@ -235,6 +253,7 @@
 
           <label>
             Ora
+
             <input
               name="match.time"
               type="time"
@@ -254,16 +273,24 @@
 
           <label>
             Campo
-            <input name="match.field" required>
+
+            <input
+              name="match.field"
+              required
+            >
           </label>
 
           <label>
             Località
-            <input name="match.location" required>
+
+            <input
+              name="match.location"
+              required
+            >
           </label>
 
           <label class="team-input home-accent">
-            Società 1
+            Società n. 1
 
             <input
               name="match.home"
@@ -274,7 +301,7 @@
           </label>
 
           <label class="team-input away-accent">
-            Società 2
+            Società n. 2
 
             <input
               name="match.away"
@@ -283,7 +310,11 @@
               placeholder="Nome società ospite"
             >
           </label>
+        </div>
 
+        <h3>Orari della gara</h3>
+
+        <div class="grid">
           <label>
             Inizio 1° tempo
             <input name="match.firstStart" type="time">
@@ -303,14 +334,23 @@
             Fine 2° tempo
             <input name="match.secondEnd" type="time">
           </label>
+
+          <label>
+            Ora uscita dal campo
+            <input name="match.leftField" type="time">
+          </label>
         </div>
 
         <h3>Team arbitrale</h3>
 
+        <p class="section-help">
+          Inserisci nominativo e numero di tessera per ogni componente presente.
+        </p>
+
         <div id="teamRows"></div>
       </section>
 
-      <!-- PASSAGGIO 3 -->
+      <!-- 3. CARTELLINO -->
       <section class="panel hidden" data-step="2">
         <div class="scoreboard">
           <div class="score-team home-card">
@@ -329,7 +369,7 @@
         <h2>Cartellino rapido</h2>
 
         <p class="section-help">
-          Seleziona la squadra e poi tocca l’evento.
+          Seleziona la squadra e poi il tipo di evento.
         </p>
 
         <div class="team-picker">
@@ -352,7 +392,9 @@
           </button>
         </div>
 
-        <div class="quick-grid">
+        <h3>Punteggio</h3>
+
+        <div class="quick-grid scoring-grid">
           <button
             type="button"
             class="event-tile score-tile"
@@ -386,16 +428,29 @@
             data-event="drop"
           >
             <b>+3</b>
-            <span>Drop</span>
+            <span>Calcio di rimbalzo</span>
           </button>
+        </div>
 
+        <h3>Provvedimenti disciplinari</h3>
+
+        <div class="quick-grid">
           <button
             type="button"
             class="event-tile yellow-tile"
             data-event="yellow"
           >
             <b>▰</b>
-            <span>Giallo</span>
+            <span>1° cartellino giallo</span>
+          </button>
+
+          <button
+            type="button"
+            class="event-tile orange-tile"
+            data-event="secondYellow"
+          >
+            <b>▰▰</b>
+            <span>Espulsione per 2° giallo</span>
           </button>
 
           <button
@@ -404,25 +459,20 @@
             data-event="red"
           >
             <b>▰</b>
-            <span>Rosso</span>
+            <span>Cartellino rosso</span>
           </button>
+        </div>
 
-          <button
-            type="button"
-            class="event-tile"
-            data-event="secondYellow"
-          >
-            <b>▰▰</b>
-            <span>2° giallo</span>
-          </button>
+        <h3>Sostituzioni</h3>
 
+        <div class="quick-grid substitution-grid">
           <button
             type="button"
             class="event-tile change-tile"
             data-event="temporary"
           >
             <b>⇄</b>
-            <span>Cambio temporaneo</span>
+            <span>Sostituzione temporanea</span>
           </button>
 
           <button
@@ -431,13 +481,17 @@
             data-event="permanent"
           >
             <b>⇄</b>
-            <span>Cambio definitivo</span>
+            <span>Sostituzione definitiva</span>
           </button>
         </div>
 
+        <!-- EDITOR EVENTO -->
         <div id="eventEditor" class="event-editor hidden">
           <div class="editor-title">
-            <h3 id="editorTitle">Dettagli evento</h3>
+            <div>
+              <p class="eyebrow">NUOVO EVENTO</p>
+              <h3 id="editorTitle">Dettagli evento</h3>
+            </div>
 
             <button
               type="button"
@@ -471,38 +525,86 @@
               >
             </label>
 
+            <label class="subject-field">
+              Tipo di soggetto
+
+              <select id="evSubjectType">
+                <option value="player">Giocatore</option>
+                <option value="member">Altro tesserato</option>
+              </select>
+            </label>
+
             <label class="person-field">
-              Giocatore / tesserato
+              Cognome e nome
 
               <input
                 id="evPerson"
-                placeholder="Nome e cognome"
+                placeholder="Cognome e nome"
               >
             </label>
 
             <label class="number-field">
-              N. maglia
-              <input id="evNumber" inputmode="numeric">
+              Numero di maglia
+
+              <input
+                id="evNumber"
+                inputmode="numeric"
+              >
             </label>
 
             <label class="card-field">
-              N. tessera
-              <input id="evCard">
+              Numero tessera
+
+              <input
+                id="evCard"
+                inputmode="numeric"
+              >
             </label>
 
             <label class="change-field">
-              Giocatore che esce
-              <input id="evOut">
+              Numero giocatore uscito
+
+              <input
+                id="evOutNumber"
+                inputmode="numeric"
+              >
             </label>
 
             <label class="change-field">
-              Giocatore che entra
-              <input id="evIn">
+              Giocatore uscito
+
+              <input
+                id="evOut"
+                placeholder="Cognome e nome"
+              >
             </label>
 
-            <label class="wide">
-              Note / motivo
-              <input id="evNotes">
+            <label class="change-field">
+              Numero giocatore entrato
+
+              <input
+                id="evInNumber"
+                inputmode="numeric"
+              >
+            </label>
+
+            <label class="change-field">
+              Giocatore entrato
+
+              <input
+                id="evIn"
+                placeholder="Cognome e nome"
+              >
+            </label>
+
+            <label class="wide reason-field">
+              Motivo o descrizione
+
+              <textarea
+                id="evNotes"
+                rows="4"
+                placeholder="Descrivere il motivo del provvedimento"
+              ></textarea>
             </label>
           </div>
 
@@ -511,7 +613,7 @@
           </button>
         </div>
 
-        <h3>Cronologia</h3>
+        <h3>Cronologia della gara</h3>
 
         <div id="emptyEvents" class="empty">
           Nessun evento registrato.
@@ -520,17 +622,17 @@
         <div class="timeline" id="eventsList"></div>
       </section>
 
-      <!-- PASSAGGIO 4 -->
+      <!-- 4. RIFERIMENTI E ALLEGATI -->
       <section class="panel hidden" data-step="3">
-        <h2>Riferimenti e incidenti</h2>
+        <h2>Riferimenti riassuntivi</h2>
 
         <p class="section-help">
-          Tocca una risposta per ogni domanda.
+          Le risposte alimentano automaticamente il Modello A e il Modello D.
         </p>
 
         <div class="questions">
           <fieldset>
-            <legend>Medico presente al campo?</legend>
+            <legend>1. Il medico era presente al campo?</legend>
 
             <label class="choice">
               <input
@@ -553,7 +655,9 @@
           </fieldset>
 
           <fieldset>
-            <legend>Entrambi gli accompagnatori presenti?</legend>
+            <legend>
+              2. Gli accompagnatori erano entrambi presenti?
+            </legend>
 
             <label class="choice">
               <input
@@ -576,7 +680,9 @@
           </fieldset>
 
           <fieldset>
-            <legend>Dirigente addetto all’arbitro</legend>
+            <legend>
+              3. Comportamento del dirigente addetto all’arbitro
+            </legend>
 
             <label class="choice">
               <input
@@ -599,7 +705,9 @@
           </fieldset>
 
           <fieldset>
-            <legend>Comportamento del pubblico</legend>
+            <legend>
+              4. Comportamento del pubblico
+            </legend>
 
             <label class="choice">
               <input
@@ -622,7 +730,7 @@
           </fieldset>
 
           <label>
-            Misure d’ordine
+            5. Misure d’ordine
 
             <select name="checks.security" required>
               <option value="">Seleziona</option>
@@ -633,7 +741,9 @@
           </label>
 
           <fieldset>
-            <legend>Rilievi su terreno o spogliatoi?</legend>
+            <legend>
+              6. Rilievi su terreno o spogliatoi?
+            </legend>
 
             <label class="choice">
               <input
@@ -656,7 +766,7 @@
           </fieldset>
 
           <fieldset>
-            <legend>Infortuni?</legend>
+            <legend>7. Infortuni?</legend>
 
             <label class="choice">
               <input
@@ -679,21 +789,30 @@
           </fieldset>
 
           <fieldset>
-            <legend>Quando sono avvenuti incidenti?</legend>
+            <legend>8. Quando sono avvenuti incidenti?</legend>
 
             <label class="choice">
-              <input type="checkbox" name="checks.before">
-              <span>Prima</span>
+              <input
+                type="checkbox"
+                name="checks.before"
+              >
+              <span>Prima della gara</span>
             </label>
 
             <label class="choice">
-              <input type="checkbox" name="checks.during">
-              <span>Durante</span>
+              <input
+                type="checkbox"
+                name="checks.during"
+              >
+              <span>Durante la gara</span>
             </label>
 
             <label class="choice">
-              <input type="checkbox" name="checks.after">
-              <span>Dopo</span>
+              <input
+                type="checkbox"
+                name="checks.after"
+              >
+              <span>Dopo la gara</span>
             </label>
           </fieldset>
 
@@ -702,22 +821,86 @@
 
             <textarea
               name="checks.details"
-              rows="7"
-              placeholder="Descrivere gli episodi nell’ordine in cui sono avvenuti"
+              rows="9"
+              placeholder="Descrivere dettagliatamente gli episodi nell’ordine in cui sono avvenuti"
             ></textarea>
+          </label>
+        </div>
+
+        <h2 class="subsection-title">Allegati e documentazione</h2>
+
+        <div class="grid">
+          <label class="toggle-card">
+            <input
+              type="checkbox"
+              name="attachments.concussion"
+            >
+
+            <span>
+              Presenza di modello “Concussion”
+            </span>
+          </label>
+
+          <label class="toggle-card">
+            <input
+              type="checkbox"
+              name="attachments.modDIntegration"
+            >
+
+            <span>
+              Modello D integrativo dell’assistente arbitro
+            </span>
+          </label>
+
+          <label>
+            Numero fogli Modello B
+
+            <input
+              name="attachments.modB"
+              type="number"
+              min="0"
+              value="2"
+            >
+          </label>
+
+          <label>
+            Numero fogli DAE
+
+            <input
+              name="attachments.dae"
+              type="number"
+              min="0"
+              value="1"
+            >
+          </label>
+
+          <label>
+            Numero documenti aggiuntivi
+
+            <input
+              name="attachments.documents"
+              type="number"
+              min="0"
+              value="0"
+            >
           </label>
         </div>
       </section>
 
-      <!-- PASSAGGIO 5 -->
+      <!-- 5. RIEPILOGO -->
       <section class="panel hidden" data-step="4">
-        <h2>Riepilogo</h2>
+        <h2>Riepilogo e generazione</h2>
 
         <div id="summary"></div>
 
         <label>
-          Note finali
-          <textarea name="notes" rows="5"></textarea>
+          Note per il frontespizio Mail
+
+          <textarea
+            name="notes"
+            rows="6"
+            placeholder="Annotazioni finali, presenza concussion o altra documentazione"
+          ></textarea>
         </label>
 
         <label class="declaration">
@@ -742,7 +925,7 @@
             type="button"
             class="secondary"
           >
-            Scarica referto ufficiale
+            Scarica replica federale
           </button>
 
           <button
@@ -788,11 +971,11 @@
 </main>
 
 <footer>
-  Beta sperimentale · Verificare sempre il PDF prima dell’invio ufficiale.
+  Beta sperimentale · Verificare il documento prima dell’invio ufficiale.
 </footer>
 
 <!-- Ordine obbligatorio -->
-<script src="app.js?v=7"></script>
-<script src="pdf-generator.js?v=7"></script>
+<script src="app.js?v=8"></script>
+<script src="pdf-generator.js?v=8"></script>
 </body>
 </html>
