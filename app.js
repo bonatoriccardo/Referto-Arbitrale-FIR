@@ -20,6 +20,17 @@ const show = (element, visible = true) => {
   element.classList.toggle("hidden", !visible);
 };
 
+const escapeHtml = value => String(value ?? "").replace(
+  /[&<>'"]/g,
+  character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;"
+  })[character]
+);
+
 const categories = [
   "SERIE A ELITE MASCHILE",
   "SERIE A ELITE FEMM",
@@ -78,7 +89,7 @@ const labels = {
   penalty: "Punizione",
   drop: "Drop",
   yellow: "Cartellino giallo",
-  secondYellow: "Secondo giallo",
+  secondYellow: "Espulsione per 2° giallo",
   red: "Cartellino rosso",
   temporary: "Sostituzione temporanea",
   permanent: "Sostituzione definitiva"
@@ -88,28 +99,23 @@ let user = null;
 let reportId = null;
 let events = [];
 let step = 0;
+let selectedTeam = "home";
+let selectedEvent = null;
 
-function setOptions(element, values, first = "Seleziona") {
+function populateOptions(element, values) {
   element.innerHTML =
-    `<option value="">${first}</option>` +
-    values.map(value => `<option>${value}</option>`).join("");
+    '<option value="">Seleziona</option>' +
+    values.map(value => `<option>${escapeHtml(value)}</option>`).join("");
 }
 
-setOptions($("#committee"), committees);
-setOptions($("#category"), categories);
+populateOptions($("#committee"), committees);
+populateOptions($("#category"), categories);
 
 $("#teamRows").innerHTML = roles.map((role, index) => `
   <div class="team-row">
     <input value="${role}" disabled>
-    <input
-      name="team.${index}.name"
-      placeholder="Nome e cognome"
-    >
-    <input
-      name="team.${index}.card"
-      placeholder="Tessera"
-    >
-    <span></span>
+    <input name="team.${index}.name" placeholder="Nome e cognome">
+    <input name="team.${index}.card" placeholder="Numero tessera">
   </div>
 `).join("");
 
@@ -117,7 +123,7 @@ const stepNames = [
   "Profilo",
   "Gara",
   "Cartellino",
-  "Eventi",
+  "Riferimenti",
   "Riepilogo"
 ];
 
@@ -126,6 +132,21 @@ $("#steps").innerHTML = stepNames.map((name, index) => `
     ${index + 1}. ${name}
   </button>
 `).join("");
+
+async function refreshVerifiedToken() {
+  if (!auth.currentUser) {
+    throw new Error("Sessione scaduta: accedi nuovamente.");
+  }
+
+  await auth.currentUser.reload();
+
+  if (!auth.currentUser.emailVerified) {
+    throw new Error("Verifica prima il tuo indirizzo e-mail.");
+  }
+
+  await auth.currentUser.getIdToken(true);
+  user = auth.currentUser;
+}
 
 function go(targetStep) {
   step = Math.max(0, Math.min(4, targetStep));
@@ -141,7 +162,11 @@ function go(targetStep) {
   show($("#prev"), step > 0);
   show($("#next"), step < 4);
 
-  $("#progress").textContent = `${step + 1} / 5`;
+  $("#progress").textContent = `Passaggio ${step + 1} di 5`;
+
+  if (step === 2) {
+    renderEvents();
+  }
 
   if (step === 4) {
     renderSummary();
@@ -154,21 +179,17 @@ function go(targetStep) {
 }
 
 $("#steps").addEventListener("click", event => {
-  const target = event.target.dataset.go;
-
-  if (target !== undefined) {
-    go(Number(target));
+  if (event.target.dataset.go !== undefined) {
+    go(Number(event.target.dataset.go));
   }
 });
 
-$("#prev").addEventListener("click", () => {
-  go(step - 1);
-});
+$("#prev").addEventListener("click", () => go(step - 1));
 
 $("#next").addEventListener("click", () => {
-  const panel = $$(".panel")[step];
+  const currentPanel = $$(".panel")[step];
 
-  const invalidField = [...panel.querySelectorAll("[required]")]
+  const invalidField = [...currentPanel.querySelectorAll("[required]")]
     .find(field => !field.checkValidity());
 
   if (invalidField) {
@@ -178,6 +199,22 @@ $("#next").addEventListener("click", () => {
 
   go(step + 1);
 });
+
+function updateTeamNames() {
+  const home = $("#homeInput").value.trim() || "Società 1";
+  const away = $("#awayInput").value.trim() || "Società 2";
+
+  $$(".js-home").forEach(element => {
+    element.textContent = home;
+  });
+
+  $$(".js-away").forEach(element => {
+    element.textContent = away;
+  });
+}
+
+$("#homeInput").addEventListener("input", updateTeamNames);
+$("#awayInput").addEventListener("input", updateTeamNames);
 
 function getFormData() {
   const data = {
@@ -218,14 +255,14 @@ function setFormData(data) {
   Object.entries(data || {}).forEach(([section, value]) => {
     if (section === "events") {
       events = value || [];
-      renderEvents();
       return;
     }
 
     if (section === "team") {
       (value || []).forEach((member, index) => {
         Object.entries(member).forEach(([property, fieldValue]) => {
-          const element = $(`[name="team.${index}.${property}"]`);
+          const element =
+            $(`[name="team.${index}.${property}"]`);
 
           if (element) {
             element.value = fieldValue ?? "";
@@ -236,9 +273,14 @@ function setFormData(data) {
       return;
     }
 
-    if (value && typeof value === "object") {
+    if (
+      value &&
+      typeof value === "object" &&
+      !("seconds" in value)
+    ) {
       Object.entries(value).forEach(([property, fieldValue]) => {
-        const elements = $$(`[name="${section}.${property}"]`);
+        const elements =
+          $$(`[name="${section}.${property}"]`);
 
         if (!elements.length) {
           return;
@@ -260,32 +302,94 @@ function setFormData(data) {
 
     const element = $(`[name="${section}"]`);
 
-    if (!element) {
-      return;
-    }
-
-    if (element.type === "checkbox") {
-      element.checked = Boolean(value);
-    } else {
-      element.value = value ?? "";
+    if (element) {
+      if (element.type === "checkbox") {
+        element.checked = Boolean(value);
+      } else {
+        element.value = value ?? "";
+      }
     }
   });
+
+  updateTeamNames();
+  renderEvents();
 }
 
-$("#addEvent").addEventListener("click", () => {
+$$(".team-choice").forEach(button => {
+  button.addEventListener("click", () => {
+    $$(".team-choice").forEach(item => {
+      item.classList.remove("selected");
+    });
+
+    button.classList.add("selected");
+    selectedTeam = button.dataset.team;
+  });
+});
+
+$$(".event-tile").forEach(button => {
+  button.addEventListener("click", () => {
+    openEventEditor(button.dataset.event);
+  });
+});
+
+function openEventEditor(type) {
+  selectedEvent = type;
+
+  const teamName = selectedTeam === "home"
+    ? ($("#homeInput").value || "Società 1")
+    : ($("#awayInput").value || "Società 2");
+
+  $("#editorTitle").textContent =
+    `${labels[type]} · ${teamName}`;
+
+  const isChange = ["temporary", "permanent"].includes(type);
+  const isDisciplinary =
+    ["yellow", "secondYellow", "red"].includes(type);
+
+  $$(".change-field").forEach(element => {
+    show(element, isChange);
+  });
+
+  $$(".person-field, .number-field, .card-field")
+    .forEach(element => {
+      show(element, isDisciplinary);
+    });
+
+  show($("#eventEditor"));
+  $("#evMinute").focus();
+}
+
+$("#cancelEvent").addEventListener("click", () => {
+  show($("#eventEditor"), false);
+  selectedEvent = null;
+});
+
+$("#confirmEvent").addEventListener("click", () => {
+  const minute = $("#evMinute").value;
+
+  if (minute === "") {
+    alert("Inserisci il minuto.");
+    return;
+  }
+
   const event = {
-    team: $("#evTeam").value,
+    team: selectedTeam,
+    type: selectedEvent,
     half: $("#evHalf").value,
-    minute: $("#evMinute").value,
-    type: $("#evType").value,
-    person: $("#evPerson").value,
-    number: $("#evNumber").value,
-    card: $("#evCard").value,
-    notes: $("#evNotes").value
+    minute,
+    person: $("#evPerson").value.trim(),
+    number: $("#evNumber").value.trim(),
+    card: $("#evCard").value.trim(),
+    out: $("#evOut").value.trim(),
+    in: $("#evIn").value.trim(),
+    notes: $("#evNotes").value.trim()
   };
 
-  if (!event.minute) {
-    alert("Inserisci il minuto dell’evento.");
+  const isChange =
+    ["temporary", "permanent"].includes(selectedEvent);
+
+  if (isChange && (!event.out || !event.in)) {
+    alert("Indica chi esce e chi entra.");
     return;
   }
 
@@ -296,123 +400,138 @@ $("#addEvent").addEventListener("click", () => {
     "#evPerson",
     "#evNumber",
     "#evCard",
+    "#evOut",
+    "#evIn",
     "#evNotes"
   ].forEach(selector => {
     $(selector).value = "";
   });
 
+  show($("#eventEditor"), false);
+  selectedEvent = null;
   renderEvents();
 });
 
 function calculateScore(team) {
   return events
     .filter(event => event.team === team)
-    .reduce((total, event) => {
-      return total + (points[event.type] || 0);
-    }, 0);
+    .reduce(
+      (total, event) => total + (points[event.type] || 0),
+      0
+    );
+}
+
+function eventDetails(event) {
+  if (["temporary", "permanent"].includes(event.type)) {
+    return `${event.out} → ${event.in}`;
+  }
+
+  return [
+    event.person,
+    event.number && `maglia ${event.number}`,
+    event.card && `tessera ${event.card}`,
+    event.notes
+  ].filter(Boolean).join(" · ");
 }
 
 function renderEvents() {
-  const data = getFormData();
+  updateTeamNames();
 
-  const homeScore = calculateScore("home");
-  const awayScore = calculateScore("away");
+  $("#homeScore").textContent = calculateScore("home");
+  $("#awayScore").textContent = calculateScore("away");
 
-  $("#homeName").textContent =
-    data.match.home || "Società 1";
+  show($("#emptyEvents"), events.length === 0);
 
-  $("#awayName").textContent =
-    data.match.away || "Società 2";
+  $("#eventsList").innerHTML = events.map((event, index) => {
+    const teamName = event.team === "home"
+      ? ($("#homeInput").value || "Società 1")
+      : ($("#awayInput").value || "Società 2");
 
-  $("#homeScore").textContent = homeScore;
-  $("#awayScore").textContent = awayScore;
+    return `
+      <div class="event-row ${event.team === "away" ? "away" : ""}">
+        <div class="event-minute">
+          ${event.half}T · ${escapeHtml(event.minute)}'
+        </div>
 
-  $("#eventsBody").innerHTML = events.map((event, index) => `
-    <tr>
-      <td>${event.team === "home" ? "1" : "2"}</td>
-      <td>${event.half}</td>
-      <td>${event.minute}</td>
-      <td>${labels[event.type]}</td>
-      <td>${event.person || ""}</td>
-      <td>
-        <button
-          type="button"
-          class="danger"
-          data-delete="${index}"
-          aria-label="Elimina evento"
-        >
+        <div class="event-main">
+          <b>
+            ${escapeHtml(labels[event.type])}
+            · ${escapeHtml(teamName)}
+          </b>
+          <small>
+            ${escapeHtml(eventDetails(event) || "Nessun dettaglio")}
+          </small>
+        </div>
+
+        <button class="danger"
+                type="button"
+                data-delete="${index}"
+                aria-label="Elimina">
           ×
         </button>
-      </td>
-    </tr>
-  `).join("");
+      </div>
+    `;
+  }).join("");
 }
 
-$("#eventsBody").addEventListener("click", event => {
-  const index = event.target.dataset.delete;
-
-  if (index === undefined) {
+$("#eventsList").addEventListener("click", event => {
+  if (event.target.dataset.delete === undefined) {
     return;
   }
 
-  events.splice(Number(index), 1);
+  events.splice(Number(event.target.dataset.delete), 1);
   renderEvents();
 });
 
-$("#reportForm").addEventListener("input", () => {
-  if (step === 2) {
-    renderEvents();
-  }
-});
-
-function getScores() {
-  return [
-    calculateScore("home"),
-    calculateScore("away")
-  ];
-}
-
 function renderSummary() {
   const data = getFormData();
-  const [homeScore, awayScore] = getScores();
 
   $("#summary").innerHTML = `
-    <div class="score">
-      <div>
-        <span>${data.match.home || "Società 1"}</span>
-        <b>${homeScore}</b>
+    <div class="scoreboard">
+      <div class="score-team home-card">
+        <span>${escapeHtml(data.match.home || "Società 1")}</span>
+        <strong>${calculateScore("home")}</strong>
       </div>
 
-      <div>
-        <span>${data.match.away || "Società 2"}</span>
-        <b>${awayScore}</b>
+      <div class="versus">FINALE</div>
+
+      <div class="score-team away-card">
+        <span>${escapeHtml(data.match.away || "Società 2")}</span>
+        <strong>${calculateScore("away")}</strong>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-box">
+        <small>Gara</small>
+        <b>${escapeHtml(data.match.category || "—")}</b>
+      </div>
+
+      <div class="summary-box">
+        <small>Data e ora</small>
+        <b>
+          ${escapeHtml(data.match.date || "—")}
+          · ${escapeHtml(data.match.time || "—")}
+        </b>
+      </div>
+
+      <div class="summary-box">
+        <small>Eventi</small>
+        <b>${events.length}</b>
       </div>
     </div>
 
     <p>
-      <b>Gara:</b>
-      ${data.match.category || ""} —
-      ${data.match.date || ""},
-      ${data.match.time || ""}
-    </p>
-
-    <p>
       <b>Arbitro:</b>
-      ${data.referee.firstName || ""}
-      ${data.referee.lastName || ""}
-      · Tessera ${data.referee.card || ""}
-    </p>
-
-    <p>
-      <b>Eventi registrati:</b> ${events.length}
+      ${escapeHtml(data.referee.firstName)}
+      ${escapeHtml(data.referee.lastName)}
+      · Tessera ${escapeHtml(data.referee.card)}
     </p>
   `;
 }
 
 async function saveReport(status = "draft") {
-  if (!user) {
-    return;
-  }
+  await refreshVerifiedToken();
 
   const data = getFormData();
   const isNew = !reportId;
@@ -427,84 +546,95 @@ async function saveReport(status = "draft") {
       firebase.firestore.FieldValue.serverTimestamp();
   }
 
-  const reportReference = isNew
+  const reference = isNew
     ? db.collection("reports").doc()
     : db.collection("reports").doc(reportId);
 
-  reportId = reportReference.id;
+  reportId = reference.id;
 
+  await Promise.all([
+    reference.set(data, { merge: true }),
+
+    db.collection("profiles")
+      .doc(user.uid)
+      .set(
+        {
+          ...data.referee,
+          updatedAt:
+            firebase.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      )
+  ]);
+
+  $("#saveMsg").textContent =
+    status === "completed"
+      ? "Referto confermato."
+      : "Bozza salvata correttamente.";
+
+  await loadReports();
+}
+
+async function guardedSave(status) {
   try {
-    await Promise.all([
-      reportReference.set(data, { merge: true }),
+    if (
+      status === "completed" &&
+      !$("#reportForm").reportValidity()
+    ) {
+      return;
+    }
 
-      db.collection("profiles")
-        .doc(user.uid)
-        .set(
-          {
-            ...data.referee,
-            updatedAt:
-              firebase.firestore.FieldValue.serverTimestamp()
-          },
-          { merge: true }
-        )
-    ]);
-
-    $("#saveMsg").textContent =
-      status === "completed"
-        ? "Referto confermato."
-        : "Bozza salvata.";
-
-    await loadReports();
+    await saveReport(status);
   } catch (error) {
+    console.error(error);
+
     $("#saveMsg").textContent =
-      `Errore durante il salvataggio: ${error.message}`;
+      error.code === "permission-denied"
+        ? "Permesso negato: pubblica le regole Firestore, poi esci e accedi nuovamente."
+        : `Errore: ${error.message}`;
   }
 }
 
 $("#save").addEventListener("click", () => {
-  saveReport("draft");
+  guardedSave("draft");
 });
 
-$("#complete").addEventListener("click", async () => {
-  if (!$("#reportForm").reportValidity()) {
-    return;
-  }
-
-  await saveReport("completed");
+$("#complete").addEventListener("click", () => {
+  guardedSave("completed");
 });
 
 $("#pdf").addEventListener("click", () => {
   const data = getFormData();
-  const [homeScore, awayScore] = getScores();
-
   const { jsPDF } = window.jspdf;
-  const documentPdf = new jsPDF();
+  const pdf = new jsPDF();
 
-  let y = 18;
+  let y = 17;
 
-  function addLine(text, size = 11, bold = false) {
-    documentPdf.setFontSize(size);
-    documentPdf.setFont(
-      "helvetica",
-      bold ? "bold" : "normal"
-    );
+  function addLine(text, size = 10, bold = false) {
+    pdf.setFontSize(size);
+    pdf.setFont("helvetica", bold ? "bold" : "normal");
 
-    const lines = documentPdf.splitTextToSize(
-      String(text),
-      180
-    );
+    const lines = pdf.splitTextToSize(String(text), 180);
 
-    documentPdf.text(lines, 15, y);
-    y += lines.length * 6;
-
-    if (y > 275) {
-      documentPdf.addPage();
-      y = 18;
+    if (y + lines.length * 6 > 280) {
+      pdf.addPage();
+      y = 17;
     }
+
+    pdf.text(lines, 15, y);
+    y += lines.length * 6;
   }
 
-  addLine("FEDERAZIONE ITALIANA RUGBY", 15, true);
-  addLine("REFERTO ARBITRALE — BETA", 13, true);
+  pdf.setFillColor(0, 59, 122);
+  pdf.rect(0, 0, 210, 26, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(16);
+  pdf.text("FEDERAZIONE ITALIANA RUGBY", 15, 17);
+
+  pdf.setTextColor(20, 38, 58);
+  y = 36;
+
+  addLine("REFERTO ARBITRALE — BETA", 14, true);
 
   addLine(
     `${data.match.category || ""} · ` +
@@ -512,8 +642,10 @@ $("#pdf").addEventListener("click", () => {
   );
 
   addLine(
-    `${data.match.home || "Società 1"} ${homeScore} - ` +
-    `${awayScore} ${data.match.away || "Società 2"}`,
+    `${data.match.home || "Società 1"} ` +
+    `${calculateScore("home")} - ` +
+    `${calculateScore("away")} ` +
+    `${data.match.away || "Società 2"}`,
     16,
     true
   );
@@ -529,20 +661,28 @@ $("#pdf").addEventListener("click", () => {
     `Tessera ${data.referee.card || ""}`
   );
 
+  addLine("TEAM ARBITRALE", 12, true);
+
+  data.team
+    .filter(member => member?.name)
+    .forEach(member => {
+      addLine(
+        `${member.role}: ${member.name} · ` +
+        `${member.card || "tessera non indicata"}`
+      );
+    });
+
   addLine("EVENTI", 12, true);
 
-  if (!events.length) {
-    addLine("Nessun evento registrato.");
-  }
-
   events.forEach(event => {
+    const teamName = event.team === "home"
+      ? (data.match.home || "Società 1")
+      : (data.match.away || "Società 2");
+
     addLine(
-      `Sq.${event.team === "home" ? "1" : "2"} · ` +
-      `T${event.half} ${event.minute}' · ` +
-      `${labels[event.type]} · ` +
-      `${event.person || ""} ` +
-      `${event.number ? `#${event.number}` : ""} ` +
-      `${event.notes || ""}`
+      `${event.half}T ${event.minute}' · ` +
+      `${teamName} · ${labels[event.type]} · ` +
+      `${eventDetails(event)}`
     );
   });
 
@@ -558,78 +698,65 @@ $("#pdf").addEventListener("click", () => {
   addLine(data.notes || "—");
 
   addLine(
-    "Documento generato dalla beta. " +
-    "Verificare prima dell’invio ufficiale.",
-    9
+    "Documento beta: verificare prima dell’invio ufficiale.",
+    8
   );
 
   const safeHome = (data.match.home || "gara")
     .replace(/\W+/g, "-");
 
-  documentPdf.save(
+  pdf.save(
     `referto-${data.match.date || "bozza"}-${safeHome}.pdf`
   );
 });
 
 async function loadReports() {
-  if (!user) {
-    return;
-  }
+  await refreshVerifiedToken();
 
-  try {
-    const snapshot = await db
-      .collection("reports")
-      .where("owner", "==", user.uid)
-      .get();
+  const snapshot = await db
+    .collection("reports")
+    .where("owner", "==", user.uid)
+    .get();
 
-    const reports = snapshot.docs
-      .map(document => ({
-        id: document.id,
-        ...document.data()
-      }))
-      .sort((first, second) => {
-        const firstDate = first.updatedAt?.seconds || 0;
-        const secondDate = second.updatedAt?.seconds || 0;
-        return secondDate - firstDate;
-      });
+  const reports = snapshot.docs
+    .map(document => ({
+      id: document.id,
+      ...document.data()
+    }))
+    .sort((first, second) =>
+      (second.updatedAt?.seconds || 0) -
+      (first.updatedAt?.seconds || 0)
+    );
 
-    if (!reports.length) {
-      $("#reports").innerHTML =
-        "<p>Nessun referto salvato.</p>";
-      return;
-    }
-
-    $("#reports").innerHTML = reports.map(report => `
-      <div class="report-item">
-        <span>
-          <b>
-            ${report.match?.home || "Gara"} –
-            ${report.match?.away || ""}
-          </b>
-          <br>
-          ${report.match?.date || "Senza data"}
-        </span>
-
-        <span>
-          <span class="badge">
-            ${report.status === "completed"
-              ? "Confermato"
-              : "Bozza"}
+  $("#reports").innerHTML = reports.length
+    ? reports.map(report => `
+        <div class="report-item">
+          <span>
+            <b>
+              ${escapeHtml(report.match?.home || "Gara")}
+              –
+              ${escapeHtml(report.match?.away || "")}
+            </b>
+            <br>
+            <small>
+              ${escapeHtml(report.match?.date || "Senza data")}
+            </small>
           </span>
 
-          <button
-            data-load="${report.id}"
-            type="button"
-          >
-            Apri
-          </button>
-        </span>
-      </div>
-    `).join("");
-  } catch (error) {
-    $("#reports").innerHTML =
-      `<p class="msg">Errore: ${error.message}</p>`;
-  }
+          <span>
+            <span class="badge">
+              ${report.status === "completed"
+                ? "Confermato"
+                : "Bozza"}
+            </span>
+
+            <button data-load="${report.id}" type="button">
+              Apri
+            </button>
+          </span>
+        </div>
+      `).join("")
+    : '<div class="empty">Nessun referto salvato.</div>';
 }
 
 $("#reports").addEventListener("click", async event => {
@@ -640,23 +767,21 @@ $("#reports").addEventListener("click", async event => {
   }
 
   try {
-    const documentSnapshot = await db
+    const snapshot = await db
       .collection("reports")
       .doc(id)
       .get();
 
-    if (!documentSnapshot.exists) {
-      alert("Il referto non è più disponibile.");
+    if (!snapshot.exists) {
       return;
     }
 
-    reportId = documentSnapshot.id;
-
+    reportId = snapshot.id;
     $("#reportForm").reset();
-    setFormData(documentSnapshot.data());
+    setFormData(snapshot.data());
     go(0);
   } catch (error) {
-    alert(`Errore durante l’apertura: ${error.message}`);
+    alert(error.message);
   }
 });
 
@@ -672,13 +797,11 @@ $("#newReport").addEventListener("click", () => {
     }
   });
 
-  renderEvents();
   go(0);
 });
 
 $("#authForm").addEventListener("submit", async event => {
   event.preventDefault();
-  $("#authMsg").textContent = "";
 
   try {
     await auth.signInWithEmailAndPassword(
@@ -691,8 +814,6 @@ $("#authForm").addEventListener("submit", async event => {
 });
 
 $("#register").addEventListener("click", async () => {
-  $("#authMsg").textContent = "";
-
   try {
     const credentials =
       await auth.createUserWithEmailAndPassword(
@@ -703,23 +824,19 @@ $("#register").addEventListener("click", async () => {
     await credentials.user.sendEmailVerification();
 
     $("#authMsg").textContent =
-      "Controlla la tua e-mail per verificare l’account.";
+      "Account creato. Controlla la tua e-mail.";
   } catch (error) {
     $("#authMsg").textContent = error.message;
   }
 });
 
 $("#reset").addEventListener("click", async () => {
-  const email = $("#email").value;
-
-  if (!email) {
-    $("#authMsg").textContent =
-      "Inserisci prima l’indirizzo e-mail.";
-    return;
-  }
-
   try {
-    await auth.sendPasswordResetEmail(email);
+    if (!$("#email").value) {
+      throw new Error("Inserisci prima l’e-mail.");
+    }
+
+    await auth.sendPasswordResetEmail($("#email").value);
 
     $("#authMsg").textContent =
       "E-mail di recupero inviata.";
@@ -731,19 +848,18 @@ $("#reset").addEventListener("click", async () => {
 $("#resend").addEventListener("click", async () => {
   try {
     await auth.currentUser.sendEmailVerification();
-    alert("E-mail di verifica inviata.");
+    $("#verifyMsg").textContent = "E-mail inviata.";
   } catch (error) {
-    alert(error.message);
+    $("#verifyMsg").textContent = error.message;
   }
 });
 
 $("#reload").addEventListener("click", async () => {
-  await auth.currentUser.reload();
-
-  if (auth.currentUser.emailVerified) {
+  try {
+    await refreshVerifiedToken();
     window.location.reload();
-  } else {
-    alert("L’indirizzo non risulta ancora verificato.");
+  } catch (error) {
+    $("#verifyMsg").textContent = error.message;
   }
 });
 
@@ -756,43 +872,41 @@ auth.onAuthStateChanged(async currentUser => {
 
   show($("#logout"), Boolean(currentUser));
   show($("#auth"), !currentUser);
-
-  show(
-    $("#verify"),
-    Boolean(currentUser) && !currentUser.emailVerified
-  );
-
-  show(
-    $("#app"),
-    Boolean(currentUser) && currentUser.emailVerified
-  );
+  show($("#verify"), Boolean(currentUser) && !currentUser.emailVerified);
+  show($("#app"), Boolean(currentUser) && currentUser.emailVerified);
 
   if (!currentUser || !currentUser.emailVerified) {
     return;
   }
 
   try {
+    await refreshVerifiedToken();
+
     const profile = await db
       .collection("profiles")
       .doc(currentUser.uid)
       .get();
 
-    if (profile.exists) {
-      setFormData({
-        referee: profile.data()
-      });
-    } else {
-      setFormData({
-        referee: {
-          email: currentUser.email
-        }
-      });
-    }
+    setFormData({
+      referee: profile.exists
+        ? profile.data()
+        : { email: currentUser.email }
+    });
 
     await loadReports();
     go(0);
   } catch (error) {
-    alert(`Errore di inizializzazione: ${error.message}`);
+    console.error(error);
+
+    $("#reports").innerHTML = `
+      <p class="message">
+        ${
+          error.code === "permission-denied"
+            ? "Firestore non autorizzato: pubblica le regole di sicurezza indicate nel progetto."
+            : escapeHtml(error.message)
+        }
+      </p>
+    `;
   }
 });
 
