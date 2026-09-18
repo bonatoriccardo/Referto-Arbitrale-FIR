@@ -1,4 +1,4 @@
-const CACHE = "referto-fir-v2";
+const CACHE = "referto-fir-v4";
 
 const FILES = [
   "./",
