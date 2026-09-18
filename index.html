@@ -2,10 +2,8 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#123b2a">
-
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#003b7a">
   <title>Referto Arbitrale FIR — Beta</title>
 
   <link rel="manifest" href="manifest.webmanifest">
@@ -19,18 +17,21 @@
 
 <body>
 <header>
-  <div>
-    <b>FIR</b>
-    <span>Referto Arbitrale</span>
+  <div class="brand">
+    <span class="brand-mark">FIR</span>
+    <span>
+      <b>Federazione Italiana Rugby</b>
+      <small>Referto arbitrale · Beta</small>
+    </span>
   </div>
-
-  <button id="logout" class="ghost hidden">Esci</button>
+  <button id="logout" class="outline hidden">Esci</button>
 </header>
 
 <main>
-  <section id="auth" class="card narrow">
-    <h1>Accedi alla beta</h1>
-    <p>Compila e conserva i referti arbitrali in modo guidato.</p>
+  <section id="auth" class="card auth-card">
+    <p class="eyebrow">AREA ARBITRI</p>
+    <h1>Accedi al referto digitale</h1>
+    <p class="muted">Compila, salva e genera il PDF della gara.</p>
 
     <form id="authForm">
       <label>
@@ -40,76 +41,81 @@
 
       <label>
         Password
-        <input id="password"
-               type="password"
-               minlength="6"
-               required
-               autocomplete="current-password">
+        <input id="password" type="password" minlength="6"
+               required autocomplete="current-password">
       </label>
 
-      <div class="row">
+      <div class="actions">
         <button type="submit">Accedi</button>
         <button id="register" type="button" class="secondary">
-          Registrati
+          Crea account
         </button>
       </div>
 
-      <button id="reset" type="button" class="link">
+      <button id="reset" type="button" class="text-button">
         Password dimenticata?
       </button>
 
-      <p id="authMsg" class="msg"></p>
+      <p id="authMsg" class="message"></p>
     </form>
   </section>
 
-  <section id="verify" class="card narrow hidden">
-    <h1>Verifica l’e-mail</h1>
+  <section id="verify" class="card auth-card hidden">
+    <p class="eyebrow">ULTIMO PASSAGGIO</p>
+    <h1>Verifica la tua e-mail</h1>
+    <p>Apri il messaggio ricevuto e conferma l’indirizzo.</p>
 
-    <p>
-      Apri il messaggio ricevuto, verifica l’indirizzo e poi torna qui.
-    </p>
-
-    <div class="row">
-      <button id="resend">Reinvia</button>
-      <button id="reload" class="secondary">Ho verificato</button>
+    <div class="actions">
+      <button id="reload">Ho verificato</button>
+      <button id="resend" class="secondary">Reinvia e-mail</button>
     </div>
+
+    <p id="verifyMsg" class="message"></p>
   </section>
 
   <section id="app" class="hidden">
-    <nav class="steps" id="steps"></nav>
+    <div class="app-head">
+      <div>
+        <p class="eyebrow">COMPILAZIONE GUIDATA</p>
+        <h1>Referto arbitrale</h1>
+      </div>
+
+      <button id="newReport" class="secondary" type="button">
+        + Nuovo referto
+      </button>
+    </div>
+
+    <nav id="steps" class="steps"></nav>
 
     <form id="reportForm">
-      <div class="panel" data-step="0">
-        <h2>1. Profilo arbitro</h2>
+      <section class="panel" data-step="0">
+        <h2>Profilo arbitro</h2>
+        <p class="section-help">
+          I dati saranno ricordati per i referti successivi.
+        </p>
 
         <div class="grid">
-          <label>
-            Nome
+          <label>Nome
             <input name="referee.firstName" required>
           </label>
 
-          <label>
-            Cognome
+          <label>Cognome
             <input name="referee.lastName" required>
           </label>
 
-          <label>
-            Telefono
+          <label>Telefono
             <input name="referee.phone" type="tel" required>
           </label>
 
-          <label>
-            E-mail
-            <input name="referee.email" type="email" required>
+          <label>E-mail
+            <input name="referee.email" type="email" required readonly>
           </label>
 
-          <label>
-            Numero tessera
+          <label>Numero tessera
             <input name="referee.card" required inputmode="numeric">
           </label>
 
-          <label>
-            Ruolo nella gara
+          <label>Ruolo nella gara
             <select name="referee.role" required>
               <option value="">Seleziona</option>
               <option>Arbitro</option>
@@ -123,252 +129,255 @@
             </select>
           </label>
 
-          <label class="wide">
-            Comitato
-            <select name="referee.committee"
-                    id="committee"
-                    required></select>
+          <label class="wide">Comitato
+            <select name="referee.committee" id="committee" required></select>
           </label>
         </div>
-      </div>
+      </section>
 
-      <div class="panel hidden" data-step="1">
-        <h2>2. Gara</h2>
+      <section class="panel hidden" data-step="1">
+        <h2>Dati della gara</h2>
 
         <div class="grid">
-          <label>
-            Data
+          <label>Data
             <input name="match.date" type="date" required>
           </label>
 
-          <label>
-            Ora
+          <label>Ora
             <input name="match.time" type="time" required>
           </label>
 
-          <label>
-            Categoria
-            <select name="match.category"
-                    id="category"
-                    required></select>
+          <label>Categoria
+            <select name="match.category" id="category" required></select>
           </label>
 
-          <label>
-            Campo
+          <label>Campo
             <input name="match.field" required>
           </label>
 
-          <label>
-            Località
+          <label>Località
             <input name="match.location" required>
           </label>
 
-          <label>
-            Società 1
-            <input name="match.home" required>
+          <label class="team-input home-accent">Società 1
+            <input name="match.home" id="homeInput" required
+                   placeholder="Nome società di casa">
           </label>
 
-          <label>
-            Società 2
-            <input name="match.away" required>
+          <label class="team-input away-accent">Società 2
+            <input name="match.away" id="awayInput" required
+                   placeholder="Nome società ospite">
           </label>
 
-          <label>
-            Inizio 1° tempo
+          <label>Inizio 1° tempo
             <input name="match.firstStart" type="time">
           </label>
 
-          <label>
-            Fine 1° tempo
+          <label>Fine 1° tempo
             <input name="match.firstEnd" type="time">
           </label>
 
-          <label>
-            Inizio 2° tempo
+          <label>Inizio 2° tempo
             <input name="match.secondStart" type="time">
           </label>
 
-          <label>
-            Fine 2° tempo
+          <label>Fine 2° tempo
             <input name="match.secondEnd" type="time">
           </label>
         </div>
 
         <h3>Team arbitrale</h3>
         <div id="teamRows"></div>
-      </div>
+      </section>
 
-      <div class="panel hidden" data-step="2">
-        <h2>3. Cartellino eventi</h2>
+      <section class="panel hidden" data-step="2">
+        <div class="scoreboard">
+          <div class="score-team home-card">
+            <span class="js-home">Società 1</span>
+            <strong id="homeScore">0</strong>
+          </div>
 
-        <p class="hint">
-          Registra ogni evento: il punteggio viene calcolato automaticamente.
+          <div class="versus">RISULTATO</div>
+
+          <div class="score-team away-card">
+            <span class="js-away">Società 2</span>
+            <strong id="awayScore">0</strong>
+          </div>
+        </div>
+
+        <h2>Cartellino rapido</h2>
+        <p class="section-help">
+          Scegli la squadra, poi tocca l’evento.
         </p>
 
-        <div class="grid event-form">
-          <label>
-            Squadra
-            <select id="evTeam">
-              <option value="home">Società 1</option>
-              <option value="away">Società 2</option>
-            </select>
-          </label>
+        <div class="team-picker">
+          <button type="button" class="team-choice selected" data-team="home">
+            <span class="dot home-dot"></span>
+            <span class="js-home">Società 1</span>
+          </button>
 
-          <label>
-            Tempo
-            <select id="evHalf">
-              <option>1</option>
-              <option>2</option>
-            </select>
-          </label>
-
-          <label>
-            Minuto
-            <input id="evMinute" type="number" min="0" max="120">
-          </label>
-
-          <label>
-            Evento
-            <select id="evType">
-              <option value="try">Meta</option>
-              <option value="conversion">Trasformazione</option>
-              <option value="penalty">Punizione</option>
-              <option value="drop">Drop</option>
-              <option value="yellow">Cartellino giallo</option>
-              <option value="secondYellow">Secondo giallo</option>
-              <option value="red">Cartellino rosso</option>
-              <option value="temporary">Sostituzione temporanea</option>
-              <option value="permanent">Sostituzione definitiva</option>
-            </select>
-          </label>
-
-          <label>
-            Giocatore / tesserato
-            <input id="evPerson">
-          </label>
-
-          <label>
-            N. maglia
-            <input id="evNumber" inputmode="numeric">
-          </label>
-
-          <label>
-            N. tessera
-            <input id="evCard">
-          </label>
-
-          <label class="wide">
-            Note / motivo
-            <input id="evNotes">
-          </label>
+          <button type="button" class="team-choice" data-team="away">
+            <span class="dot away-dot"></span>
+            <span class="js-away">Società 2</span>
+          </button>
         </div>
 
-        <button id="addEvent" type="button">Aggiungi evento</button>
+        <div class="quick-grid">
+          <button type="button" class="event-tile score-tile" data-event="try">
+            <b>+5</b><span>Meta</span>
+          </button>
 
-        <div class="score">
-          <div>
-            <span id="homeName">Società 1</span>
-            <b id="homeScore">0</b>
+          <button type="button" class="event-tile score-tile"
+                  data-event="conversion">
+            <b>+2</b><span>Trasformazione</span>
+          </button>
+
+          <button type="button" class="event-tile score-tile"
+                  data-event="penalty">
+            <b>+3</b><span>Punizione</span>
+          </button>
+
+          <button type="button" class="event-tile score-tile"
+                  data-event="drop">
+            <b>+3</b><span>Drop</span>
+          </button>
+
+          <button type="button" class="event-tile yellow-tile"
+                  data-event="yellow">
+            <b>▰</b><span>Giallo</span>
+          </button>
+
+          <button type="button" class="event-tile red-tile"
+                  data-event="red">
+            <b>▰</b><span>Rosso</span>
+          </button>
+
+          <button type="button" class="event-tile"
+                  data-event="secondYellow">
+            <b>▰▰</b><span>2° giallo</span>
+          </button>
+
+          <button type="button" class="event-tile change-tile"
+                  data-event="temporary">
+            <b>⇄</b><span>Cambio temporaneo</span>
+          </button>
+
+          <button type="button" class="event-tile change-tile"
+                  data-event="permanent">
+            <b>⇄</b><span>Cambio definitivo</span>
+          </button>
+        </div>
+
+        <div id="eventEditor" class="event-editor hidden">
+          <div class="editor-title">
+            <h3 id="editorTitle">Dettagli evento</h3>
+            <button type="button" id="cancelEvent" class="icon-button">×</button>
           </div>
 
-          <div>
-            <span id="awayName">Società 2</span>
-            <b id="awayScore">0</b>
+          <div class="grid">
+            <label>Tempo
+              <select id="evHalf">
+                <option value="1">1° tempo</option>
+                <option value="2">2° tempo</option>
+              </select>
+            </label>
+
+            <label>Minuto
+              <input id="evMinute" type="number" min="0" max="120"
+                     placeholder="es. 24">
+            </label>
+
+            <label class="person-field">Giocatore / tesserato
+              <input id="evPerson" placeholder="Nome e cognome">
+            </label>
+
+            <label class="number-field">N. maglia
+              <input id="evNumber" inputmode="numeric">
+            </label>
+
+            <label class="card-field">N. tessera
+              <input id="evCard">
+            </label>
+
+            <label class="change-field">Giocatore che esce
+              <input id="evOut">
+            </label>
+
+            <label class="change-field">Giocatore che entra
+              <input id="evIn">
+            </label>
+
+            <label class="wide">Note / motivo
+              <input id="evNotes">
+            </label>
           </div>
+
+          <button id="confirmEvent" type="button">Registra evento</button>
         </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-            <tr>
-              <th>Sq.</th>
-              <th>T</th>
-              <th>Min</th>
-              <th>Evento</th>
-              <th>Nominativo</th>
-              <th></th>
-            </tr>
-            </thead>
+        <h3>Cronologia</h3>
+        <div id="emptyEvents" class="empty">Nessun evento registrato.</div>
+        <div class="timeline" id="eventsList"></div>
+      </section>
 
-            <tbody id="eventsBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="panel hidden" data-step="3">
-        <h2>4. Riferimenti e incidenti</h2>
+      <section class="panel hidden" data-step="3">
+        <h2>Riferimenti e incidenti</h2>
+        <p class="section-help">Tocca una risposta per ogni domanda.</p>
 
         <div class="questions">
           <fieldset>
-            <legend>Medico presente?</legend>
-            <label>
-              <input type="radio"
-                     name="checks.doctor"
-                     value="Si"
-                     required>
-              Sì
+            <legend>Medico presente al campo?</legend>
+            <label class="choice">
+              <input type="radio" name="checks.doctor" value="Si" required>
+              <span>Sì</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.doctor"
-                     value="No">
-              No
+            <label class="choice">
+              <input type="radio" name="checks.doctor" value="No">
+              <span>No</span>
             </label>
           </fieldset>
 
           <fieldset>
             <legend>Entrambi gli accompagnatori presenti?</legend>
-            <label>
-              <input type="radio"
-                     name="checks.escorts"
-                     value="Si"
-                     required>
-              Sì
+            <label class="choice">
+              <input type="radio" name="checks.escorts" value="Si" required>
+              <span>Sì</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.escorts"
-                     value="No">
-              No
+            <label class="choice">
+              <input type="radio" name="checks.escorts" value="No">
+              <span>No</span>
             </label>
           </fieldset>
 
           <fieldset>
             <legend>Dirigente addetto all’arbitro</legend>
-            <label>
-              <input type="radio"
-                     name="checks.manager"
-                     value="Normale"
-                     required>
-              Normale
+            <label class="choice">
+              <input type="radio" name="checks.manager"
+                     value="Normale" required>
+              <span>Normale</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.manager"
+            <label class="choice">
+              <input type="radio" name="checks.manager"
                      value="Censurabile">
-              Censurabile
+              <span>Censurabile</span>
             </label>
           </fieldset>
 
           <fieldset>
             <legend>Comportamento del pubblico</legend>
-            <label>
-              <input type="radio"
-                     name="checks.crowd"
-                     value="Corretto"
-                     required>
-              Corretto
+            <label class="choice">
+              <input type="radio" name="checks.crowd"
+                     value="Corretto" required>
+              <span>Corretto</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.crowd"
+            <label class="choice">
+              <input type="radio" name="checks.crowd"
                      value="Scorretto">
-              Scorretto
+              <span>Scorretto</span>
             </label>
           </fieldset>
 
-          <label>
-            Misure d’ordine
+          <label>Misure d’ordine
             <select name="checks.security" required>
               <option value="">Seleziona</option>
               <option>Svolte da forze dell'ordine</option>
@@ -378,112 +387,99 @@
           </label>
 
           <fieldset>
-            <legend>Rilievi su terreno/spogliatoi?</legend>
-            <label>
-              <input type="radio"
-                     name="checks.facilities"
-                     value="No"
-                     required>
-              No
+            <legend>Rilievi su terreno o spogliatoi?</legend>
+            <label class="choice">
+              <input type="radio" name="checks.facilities"
+                     value="No" required>
+              <span>No</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.facilities"
-                     value="Si">
-              Sì
+            <label class="choice">
+              <input type="radio" name="checks.facilities" value="Si">
+              <span>Sì</span>
             </label>
           </fieldset>
 
           <fieldset>
             <legend>Infortuni?</legend>
-            <label>
-              <input type="radio"
-                     name="checks.injuries"
-                     value="No"
-                     required>
-              No
+            <label class="choice">
+              <input type="radio" name="checks.injuries"
+                     value="No" required>
+              <span>No</span>
             </label>
-            <label>
-              <input type="radio"
-                     name="checks.injuries"
-                     value="Si">
-              Sì
+            <label class="choice">
+              <input type="radio" name="checks.injuries" value="Si">
+              <span>Sì</span>
             </label>
           </fieldset>
 
           <fieldset>
-            <legend>Incidenti</legend>
-            <label>
+            <legend>Quando sono avvenuti incidenti?</legend>
+            <label class="choice">
               <input type="checkbox" name="checks.before">
-              Prima
+              <span>Prima</span>
             </label>
-            <label>
+            <label class="choice">
               <input type="checkbox" name="checks.during">
-              Durante
+              <span>Durante</span>
             </label>
-            <label>
+            <label class="choice">
               <input type="checkbox" name="checks.after">
-              Dopo
+              <span>Dopo</span>
             </label>
           </fieldset>
 
-          <label class="wide">
-            Descrizione dettagliata
-            <textarea name="checks.details" rows="8"></textarea>
+          <label>Descrizione dettagliata
+            <textarea name="checks.details" rows="7"
+              placeholder="Descrivere gli episodi nell’ordine in cui sono avvenuti"></textarea>
           </label>
         </div>
-      </div>
+      </section>
 
-      <div class="panel hidden" data-step="4">
-        <h2>5. Riepilogo e invio</h2>
-
+      <section class="panel hidden" data-step="4">
+        <h2>Riepilogo</h2>
         <div id="summary"></div>
 
-        <label>
-          Note finali
+        <label>Note finali
           <textarea name="notes" rows="5"></textarea>
         </label>
 
-        <label class="consent">
+        <label class="declaration">
           <input type="checkbox" name="declaration" required>
-          Confermo che i dati inseriti sono completi e corretti.
+          <span>Confermo che i dati inseriti sono completi e corretti.</span>
         </label>
 
-        <div class="row wrap">
+        <div class="actions wrap">
           <button id="save" type="button">Salva bozza</button>
-          <button id="pdf" type="button" class="secondary">
-            Scarica PDF
-          </button>
+          <button id="pdf" type="button" class="secondary">Scarica PDF</button>
           <button id="complete" type="button" class="danger">
             Conferma referto
           </button>
         </div>
 
-        <p id="saveMsg" class="msg"></p>
-      </div>
+        <p id="saveMsg" class="message"></p>
+      </section>
 
       <div class="wizard">
-        <button id="prev" type="button" class="secondary">Indietro</button>
+        <button id="prev" type="button" class="secondary">← Indietro</button>
         <span id="progress"></span>
-        <button id="next" type="button">Avanti</button>
+        <button id="next" type="button">Avanti →</button>
       </div>
     </form>
 
-    <section class="card">
-      <div class="row between">
-        <h2>Le mie bozze</h2>
-        <button id="newReport" type="button" class="secondary">
-          Nuovo referto
-        </button>
+    <section class="card archive">
+      <div class="archive-head">
+        <div>
+          <p class="eyebrow">ARCHIVIO PERSONALE</p>
+          <h2>Le mie bozze e i referti</h2>
+        </div>
       </div>
-
       <div id="reports"></div>
     </section>
   </section>
 </main>
 
 <footer>
-  Beta sperimentale — verificare il PDF prima dell’invio ufficiale.
+  Beta sperimentale · Verificare sempre il PDF prima dell’invio ufficiale.
 </footer>
 
 <script src="app.js"></script>
